@@ -1,0 +1,11 @@
+# Core dependencies for AI Video Editor
+faster-whisper>=1.0.0
+opencv-python>=4.8.0
+ffmpeg-python>=0.2.0
+
+# Testing dependencies
+pytest>=8.0.0
+pytest-cov>=4.1.0
+
+# Type checking
+mypy>=1.8.0
