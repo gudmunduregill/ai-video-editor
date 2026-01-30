@@ -1,7 +1,5 @@
-This is a test project in order to learn Claude and learn about agentic workflow.
-
-The objective is to create a new application from scratch that adheres to modern software development
-standards and includes multiple agents, each with a specific role and domain knowledge.
+The objective is to create an application which edits videos for the user. This will adhere to modern software development standards
+and includes multiple agents, each with a specific role and domain knowledge.
 
 We are using test driven development.
 
