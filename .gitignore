@@ -45,6 +45,7 @@ input/*.avi
 input/broll/*
 output/*.fcpxml
 output/*.xml
+output/*.srt
 
 # Keep directories but not contents
 !input/.gitkeep
