@@ -1,3 +1,25 @@
+## Project Status (Last Updated: 2026-01-30)
+
+**Phase:** Subtitle generation pipeline (core modules complete)
+
+**Completed:**
+- ✅ Audio extraction (`scripts/audio_extractor.py`) - ffmpeg-based WAV extraction
+- ✅ Transcription (`scripts/transcription.py`) - faster-whisper integration
+- ✅ Subtitle writing (`scripts/subtitle_writer.py`) - SRT format output
+- ✅ Transcript correction (`scripts/transcript_corrector.py`) - LLM-assisted review utilities
+- ✅ Test suite - 56 tests passing
+
+**Next up:**
+- [ ] Main orchestration script to tie pipeline together
+- [ ] CLI interface for end users
+- [ ] VTT subtitle format support
+- [ ] Actual video editing features (beyond subtitles)
+
+**Known issues:**
+- Docs reference `src/` but code lives in `scripts/`
+
+---
+
 The objective is to create an application which edits videos for the user. This will adhere to modern software development standards
 and includes multiple agents, each with a specific role and domain knowledge.
 
