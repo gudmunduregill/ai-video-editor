@@ -17,3 +17,9 @@ class TranscriptionError(SubtitleError):
     """Raised when audio transcription fails."""
 
     pass
+
+
+class TranscriptCorrectionError(SubtitleError):
+    """Raised when transcript correction fails."""
+
+    pass
