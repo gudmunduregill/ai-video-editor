@@ -1,3 +1,12 @@
+## Development Environment
+
+**Package manager:** uv (not pip)
+- Always use `uv run` to execute Python commands
+- Example: `uv run pytest tests/` (NOT `python -m pytest`)
+- Example: `uv run python scripts/pipeline.py` (NOT `python scripts/pipeline.py`)
+
+---
+
 ## Project Status (Last Updated: 2026-01-30)
 
 **Phase:** Subtitle generation pipeline complete, ready for CLI
@@ -8,7 +17,7 @@
 - ✅ Subtitle writing (`scripts/subtitle_writer.py`) - SRT format output
 - ✅ Transcript correction (`scripts/transcript_corrector.py`) - LLM-assisted review utilities
 - ✅ Main pipeline (`scripts/pipeline.py`) - `process_video()` orchestrates full workflow
-- ✅ Test suite - 78 tests passing
+- ✅ Test suite - 113 tests passing
 
 **Next up:**
 - [ ] CLI interface for end users
