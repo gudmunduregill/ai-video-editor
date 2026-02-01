@@ -56,16 +56,19 @@ For any new video transcription, follow this complete workflow:
    uv run python -m scripts video.mp4 -o output.srt
    ```
 
-2. **Icelandic Review** - Spawn `icelandic-reviewer` agent (or `general-purpose` with reviewer prompt) to review the SRT file. The reviewer:
+2. **AI Review** - Spawn `icelandic-reviewer` agent to review the SRT file. The reviewer:
    - Reads entire transcript to understand context
    - Identifies Whisper errors (mishearings, gibberish, artifacts)
    - Returns corrections dict
+   - Note: AI catches obvious errors but may miss grammar (e.g., "Haldum" vs "Höldum")
 
-3. **Apply Corrections** - Use `correct_transcript()` to apply the corrections
+3. **Apply Corrections** - Use `correct_transcript()` to apply the AI corrections
 
 4. **Generate VTT** - Re-run CLI with `-f vtt` or use `write_vtt()` directly
 
 5. **Open Browser** - Start HTTP server and open video player for user to watch (no screenshots, just play)
+
+6. **Human Review** - User watches video and identifies any remaining grammar or context errors that the AI missed. This step is essential - the AI reviewer has limited Icelandic grammar knowledge.
 
 ### Key Functions
 
