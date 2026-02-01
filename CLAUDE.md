@@ -15,22 +15,20 @@
 
 ## Project Status (Last Updated: 2026-02-01)
 
-**Phase:** Subtitle pipeline complete with CLI
+**Phase:** Subtitle pipeline complete and tested
 
 **Completed:**
 - ✅ Audio extraction (`scripts/audio_extractor.py`) - ffmpeg-based WAV extraction
-- ✅ Transcription (`scripts/transcription.py`) - faster-whisper integration
+- ✅ Transcription (`scripts/transcription.py`) - faster-whisper with large-v2 model
 - ✅ Subtitle writing (`scripts/subtitle_writer.py`) - SRT and VTT format output
 - ✅ Transcript correction (`scripts/transcript_corrector.py`) - LLM-assisted review utilities
 - ✅ Main pipeline (`scripts/pipeline.py`) - `process_video()` orchestrates full workflow
 - ✅ CLI interface (`scripts/cli.py`) - `uv run python -m scripts video.mp4`
+- ✅ Browser-based user testing with video player
 - ✅ Test suite - 143 tests passing
 
 **Next up:**
 - [ ] Actual video editing features (beyond subtitles)
-
-**Known issues:**
-- Docs reference `src/` but code lives in `scripts/`
 
 ---
 
@@ -61,8 +59,8 @@ We are using test driven development.
 ### Usage Example
 
 ```python
-from src.transcription import transcribe_audio
-from src.transcript_review import format_for_review, correct_transcript
+from scripts.transcription import transcribe_audio
+from scripts.transcript_corrector import format_for_review, correct_transcript
 
 # 1. Get initial transcript
 segments = transcribe_audio("audio.wav")
