@@ -9,6 +9,7 @@ from scripts.pipeline import process_video
 
 
 MODEL_CHOICES = ["tiny", "base", "small", "medium", "large-v2"]
+FORMAT_CHOICES = ["srt", "vtt"]
 
 
 def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
@@ -53,6 +54,14 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
         default="is",
     )
 
+    parser.add_argument(
+        "--format",
+        "-f",
+        help="Output subtitle format (default: srt)",
+        choices=FORMAT_CHOICES,
+        default="srt",
+    )
+
     return parser.parse_args(args)
 
 
@@ -76,6 +85,7 @@ def main(args: Optional[List[str]] = None) -> int:
             output_path=parsed_args.output,
             model_size=parsed_args.model,
             language=parsed_args.language,
+            subtitle_format=parsed_args.format,
         )
         print(f"Subtitles saved to: {output_path}")
         return 0

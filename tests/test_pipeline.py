@@ -562,3 +562,146 @@ class TestProcessVideoIntegration:
         with open(result, "r", encoding="utf-8") as f:
             content = f.read()
         assert len(content) > 0
+
+
+class TestProcessVideoSubtitleFormat:
+    """Tests for subtitle format support in process_video."""
+
+    def test_process_video_defaults_to_srt_format(
+        self, tmp_path: Path
+    ) -> None:
+        """process_video defaults to SRT format when no format specified."""
+        from scripts.pipeline import process_video
+
+        video_path = tmp_path / "test_video.mp4"
+        video_path.write_bytes(b"dummy video content")
+
+        mock_segments = [
+            TranscriptSegment(start=0.0, end=2.5, text="Hello"),
+        ]
+
+        with patch("scripts.pipeline.extract_audio") as mock_extract:
+            with patch("scripts.pipeline.transcribe") as mock_transcribe:
+                with patch("scripts.pipeline.write_srt") as mock_write_srt:
+                    mock_extract.return_value = str(tmp_path / "temp.wav")
+                    mock_transcribe.return_value = mock_segments
+
+                    result = process_video(str(video_path))
+
+        # Should call write_srt by default
+        mock_write_srt.assert_called_once()
+        assert result.endswith(".srt")
+
+    def test_process_video_with_srt_format(
+        self, tmp_path: Path
+    ) -> None:
+        """process_video uses write_srt when format='srt'."""
+        from scripts.pipeline import process_video
+
+        video_path = tmp_path / "test_video.mp4"
+        video_path.write_bytes(b"dummy video content")
+
+        mock_segments = [
+            TranscriptSegment(start=0.0, end=2.5, text="Hello"),
+        ]
+
+        with patch("scripts.pipeline.extract_audio") as mock_extract:
+            with patch("scripts.pipeline.transcribe") as mock_transcribe:
+                with patch("scripts.pipeline.write_srt") as mock_write_srt:
+                    mock_extract.return_value = str(tmp_path / "temp.wav")
+                    mock_transcribe.return_value = mock_segments
+
+                    result = process_video(str(video_path), subtitle_format="srt")
+
+        mock_write_srt.assert_called_once()
+        assert result.endswith(".srt")
+
+    def test_process_video_with_vtt_format(
+        self, tmp_path: Path
+    ) -> None:
+        """process_video uses write_vtt when format='vtt'."""
+        from scripts.pipeline import process_video
+
+        video_path = tmp_path / "test_video.mp4"
+        video_path.write_bytes(b"dummy video content")
+
+        mock_segments = [
+            TranscriptSegment(start=0.0, end=2.5, text="Hello"),
+        ]
+
+        with patch("scripts.pipeline.extract_audio") as mock_extract:
+            with patch("scripts.pipeline.transcribe") as mock_transcribe:
+                with patch("scripts.pipeline.write_vtt") as mock_write_vtt:
+                    mock_extract.return_value = str(tmp_path / "temp.wav")
+                    mock_transcribe.return_value = mock_segments
+
+                    result = process_video(str(video_path), subtitle_format="vtt")
+
+        mock_write_vtt.assert_called_once()
+        assert result.endswith(".vtt")
+
+    def test_process_video_vtt_format_uses_vtt_extension(
+        self, tmp_path: Path
+    ) -> None:
+        """process_video generates .vtt extension when format='vtt'."""
+        from scripts.pipeline import process_video
+
+        video_path = tmp_path / "my_video.mp4"
+        video_path.write_bytes(b"dummy video content")
+
+        mock_segments = [
+            TranscriptSegment(start=0.0, end=2.5, text="Hello"),
+        ]
+
+        with patch("scripts.pipeline.extract_audio") as mock_extract:
+            with patch("scripts.pipeline.transcribe") as mock_transcribe:
+                with patch("scripts.pipeline.write_vtt"):
+                    mock_extract.return_value = str(tmp_path / "temp.wav")
+                    mock_transcribe.return_value = mock_segments
+
+                    result = process_video(str(video_path), subtitle_format="vtt")
+
+        expected_vtt_path = str(tmp_path / "my_video.vtt")
+        assert result == expected_vtt_path
+
+    def test_process_video_invalid_format_raises_error(
+        self, tmp_path: Path
+    ) -> None:
+        """process_video raises ValueError for invalid subtitle format."""
+        from scripts.pipeline import process_video
+
+        video_path = tmp_path / "test_video.mp4"
+        video_path.write_bytes(b"dummy video content")
+
+        with pytest.raises(ValueError) as exc_info:
+            process_video(str(video_path), subtitle_format="invalid")
+
+        assert "invalid" in str(exc_info.value).lower() or "format" in str(exc_info.value).lower()
+
+    def test_process_video_custom_output_path_with_vtt_format(
+        self, tmp_path: Path
+    ) -> None:
+        """process_video uses custom output path when specified, regardless of format."""
+        from scripts.pipeline import process_video
+
+        video_path = tmp_path / "test_video.mp4"
+        video_path.write_bytes(b"dummy video content")
+        custom_output = tmp_path / "custom_output.vtt"
+
+        mock_segments = [TranscriptSegment(start=0.0, end=1.0, text="Test")]
+
+        with patch("scripts.pipeline.extract_audio") as mock_extract:
+            with patch("scripts.pipeline.transcribe") as mock_transcribe:
+                with patch("scripts.pipeline.write_vtt") as mock_write:
+                    mock_extract.return_value = str(tmp_path / "temp.wav")
+                    mock_transcribe.return_value = mock_segments
+
+                    result = process_video(
+                        str(video_path),
+                        output_path=str(custom_output),
+                        subtitle_format="vtt"
+                    )
+
+        assert result == str(custom_output)
+        mock_write.assert_called_once()
+        assert mock_write.call_args[0][1] == str(custom_output)

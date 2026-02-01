@@ -120,6 +120,7 @@ class TestCliMainFunction:
             output_path=None,
             model_size="base",
             language="is",
+            subtitle_format="srt",
         )
         assert exit_code == 0
 
@@ -432,3 +433,94 @@ class TestCliShortFlags:
         args = parse_args(["video.mp4", "-l", "en"])
 
         assert args.language == "en"
+
+
+class TestCliFormatFlag:
+    """Tests for CLI --format flag."""
+
+    def test_parse_args_with_format_flag(self) -> None:
+        """CLI accepts --format flag for subtitle format."""
+        from scripts.cli import parse_args
+
+        args = parse_args(["video.mp4", "--format", "vtt"])
+
+        assert args.format == "vtt"
+
+    def test_parse_args_with_short_format_flag(self) -> None:
+        """CLI accepts -f as short form of --format."""
+        from scripts.cli import parse_args
+
+        args = parse_args(["video.mp4", "-f", "vtt"])
+
+        assert args.format == "vtt"
+
+    def test_parse_args_format_default_is_srt(self) -> None:
+        """CLI defaults to srt format."""
+        from scripts.cli import parse_args
+
+        args = parse_args(["video.mp4"])
+
+        assert args.format == "srt"
+
+    @pytest.mark.parametrize("format_value", ["srt", "vtt"])
+    def test_parse_args_accepts_valid_format_choices(self, format_value: str) -> None:
+        """CLI accepts all valid format choices."""
+        from scripts.cli import parse_args
+
+        args = parse_args(["video.mp4", "--format", format_value])
+
+        assert args.format == format_value
+
+    def test_parse_args_rejects_invalid_format_choice(self) -> None:
+        """CLI rejects invalid format choice."""
+        from scripts.cli import parse_args
+
+        with pytest.raises(SystemExit):
+            parse_args(["video.mp4", "--format", "invalid"])
+
+    def test_main_passes_format_to_process_video(
+        self, tmp_path: Path
+    ) -> None:
+        """main() passes format to process_video."""
+        from scripts.cli import main
+
+        video_path = tmp_path / "test.mp4"
+        video_path.write_bytes(b"dummy")
+
+        with patch("scripts.cli.process_video") as mock_process:
+            mock_process.return_value = str(tmp_path / "test.vtt")
+
+            main([str(video_path), "--format", "vtt"])
+
+        call_kwargs = mock_process.call_args
+        assert call_kwargs[1]["subtitle_format"] == "vtt"
+
+    def test_main_passes_default_format_to_process_video(
+        self, tmp_path: Path
+    ) -> None:
+        """main() passes default format (srt) to process_video."""
+        from scripts.cli import main
+
+        video_path = tmp_path / "test.mp4"
+        video_path.write_bytes(b"dummy")
+
+        with patch("scripts.cli.process_video") as mock_process:
+            mock_process.return_value = str(tmp_path / "test.srt")
+
+            main([str(video_path)])
+
+        call_kwargs = mock_process.call_args
+        assert call_kwargs[1]["subtitle_format"] == "srt"
+
+    def test_module_execution_shows_format_flag_in_help(self) -> None:
+        """python -m scripts --help shows --format flag."""
+        import subprocess
+
+        result = subprocess.run(
+            [sys.executable, "-m", "scripts", "--help"],
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0
+        assert "--format" in result.stdout or "-f" in result.stdout

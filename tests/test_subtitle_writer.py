@@ -8,7 +8,12 @@ import tempfile
 
 import pytest
 
-from scripts.subtitle_writer import format_srt_timestamp, write_srt
+from scripts.subtitle_writer import (
+    format_srt_timestamp,
+    format_vtt_timestamp,
+    write_srt,
+    write_vtt,
+)
 from scripts.transcription import TranscriptSegment
 
 
@@ -163,3 +168,204 @@ class TestWriteSrt:
 
             assert "Chinese: \u4e2d\u6587" in content
             assert "\u2764" in content
+
+
+class TestFormatVttTimestamp:
+    """Tests for the format_vtt_timestamp function."""
+
+    def test_format_vtt_timestamp_zero(self) -> None:
+        """Test that zero seconds formats correctly."""
+        result = format_vtt_timestamp(0.0)
+        assert result == "00:00:00.000"
+
+    def test_format_vtt_timestamp_simple(self) -> None:
+        """Test that 65.5 seconds formats to 00:01:05.500."""
+        result = format_vtt_timestamp(65.5)
+        assert result == "00:01:05.500"
+
+    def test_format_vtt_timestamp_hours(self) -> None:
+        """Test that timestamps with hours format correctly."""
+        # 1 hour + 30 minutes + 45 seconds + 123 milliseconds
+        seconds = 3600 + 1800 + 45 + 0.123
+        result = format_vtt_timestamp(seconds)
+        assert result == "01:30:45.123"
+
+    def test_format_vtt_timestamp_rounds_milliseconds(self) -> None:
+        """Test that milliseconds are properly rounded to 3 decimal places."""
+        # 1.5555 seconds should round to 1.556 (556 milliseconds)
+        result = format_vtt_timestamp(1.5555)
+        assert result == "00:00:01.556"
+
+    def test_format_vtt_timestamp_large_hours(self) -> None:
+        """Test formatting with more than 10 hours."""
+        # 12 hours + 34 minutes + 56 seconds + 789 milliseconds
+        seconds = 12 * 3600 + 34 * 60 + 56 + 0.789
+        result = format_vtt_timestamp(seconds)
+        assert result == "12:34:56.789"
+
+    def test_format_vtt_timestamp_uses_period_not_comma(self) -> None:
+        """Test that VTT format uses period for milliseconds, not comma."""
+        result = format_vtt_timestamp(1.5)
+        assert "." in result
+        assert "," not in result
+
+
+class TestWriteVtt:
+    """Tests for the write_vtt function."""
+
+    def test_write_vtt_creates_file(
+        self, sample_segments: list[TranscriptSegment]
+    ) -> None:
+        """Test that write_vtt creates a file at the specified path."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = os.path.join(tmpdir, "subtitles.vtt")
+            write_vtt(sample_segments, output_path)
+            assert os.path.exists(output_path)
+
+    def test_write_vtt_empty_segments_raises_error(self) -> None:
+        """Test that write_vtt raises ValueError for empty segments list."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = os.path.join(tmpdir, "subtitles.vtt")
+            with pytest.raises(ValueError, match="empty"):
+                write_vtt([], output_path)
+
+    def test_write_vtt_correct_format(
+        self, sample_segments: list[TranscriptSegment]
+    ) -> None:
+        """Test that write_vtt outputs correct VTT format."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = os.path.join(tmpdir, "subtitles.vtt")
+            write_vtt(sample_segments, output_path)
+
+            with open(output_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            expected = (
+                "WEBVTT\n"
+                "\n"
+                "00:00:00.000 --> 00:00:02.500\n"
+                "Hello, world!\n"
+                "\n"
+                "00:00:02.600 --> 00:00:05.100\n"
+                "This is a test.\n"
+                "\n"
+                "00:00:05.200 --> 00:00:08.000\n"
+                "Goodbye!\n"
+            )
+            assert content == expected
+
+    def test_write_vtt_starts_with_webvtt_header(
+        self, sample_segments: list[TranscriptSegment]
+    ) -> None:
+        """Test that VTT file starts with WEBVTT header."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = os.path.join(tmpdir, "subtitles.vtt")
+            write_vtt(sample_segments, output_path)
+
+            with open(output_path, "r", encoding="utf-8") as f:
+                first_line = f.readline().strip()
+
+            assert first_line == "WEBVTT"
+
+    def test_write_vtt_uses_period_for_milliseconds(
+        self, sample_segments: list[TranscriptSegment]
+    ) -> None:
+        """Test that VTT timestamps use period for milliseconds, not comma."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = os.path.join(tmpdir, "subtitles.vtt")
+            write_vtt(sample_segments, output_path)
+
+            with open(output_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            # All timestamps should use period
+            assert "00:00:00.000" in content
+            # No comma should appear in timestamps
+            lines_with_arrow = [line for line in content.split("\n") if "-->" in line]
+            for line in lines_with_arrow:
+                assert "," not in line
+
+    def test_write_vtt_handles_special_characters(self) -> None:
+        """Test that write_vtt handles special characters in text."""
+        segments = [
+            TranscriptSegment(
+                start=0.0,
+                end=2.0,
+                text="Hello <world> & \"friends\"!",
+            ),
+            TranscriptSegment(
+                start=2.0,
+                end=4.0,
+                text="Line with\nnewline character",
+            ),
+        ]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = os.path.join(tmpdir, "subtitles.vtt")
+            write_vtt(segments, output_path)
+
+            with open(output_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            # Special characters should be preserved as-is in VTT format
+            assert 'Hello <world> & "friends"!' in content
+            # Newlines within text should also be preserved
+            assert "Line with\nnewline character" in content
+
+    def test_write_vtt_single_segment(
+        self, single_segment: TranscriptSegment
+    ) -> None:
+        """Test write_vtt with a single segment."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = os.path.join(tmpdir, "subtitles.vtt")
+            write_vtt([single_segment], output_path)
+
+            with open(output_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            expected = (
+                "WEBVTT\n"
+                "\n"
+                "00:00:00.000 --> 00:00:02.500\n"
+                "Hello, world!\n"
+            )
+            assert content == expected
+
+    def test_write_vtt_utf8_encoding(self) -> None:
+        """Test that write_vtt properly handles UTF-8 characters."""
+        segments = [
+            TranscriptSegment(start=0.0, end=2.0, text="Cafe is written as cafe"),
+            TranscriptSegment(start=2.0, end=4.0, text="Chinese: \u4e2d\u6587"),
+            TranscriptSegment(start=4.0, end=6.0, text="Emoji test: \u2764"),
+        ]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = os.path.join(tmpdir, "subtitles.vtt")
+            write_vtt(segments, output_path)
+
+            with open(output_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            assert "Chinese: \u4e2d\u6587" in content
+            assert "\u2764" in content
+
+    def test_write_vtt_no_cue_numbers(
+        self, sample_segments: list[TranscriptSegment]
+    ) -> None:
+        """Test that VTT output does not include cue numbers."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = os.path.join(tmpdir, "subtitles.vtt")
+            write_vtt(sample_segments, output_path)
+
+            with open(output_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+
+            # Skip header and blank line, check that no line is just a number
+            content_lines = lines[2:]  # After "WEBVTT\n" and blank line
+            for line in content_lines:
+                stripped = line.strip()
+                # Lines should either be empty, contain "-->" (timestamp), or be text
+                # They should not be just a number like "1", "2", "3"
+                if stripped and "-->" not in stripped:
+                    # This should be text content, not a cue number
+                    assert not stripped.isdigit(), f"Found cue number: {stripped}"
