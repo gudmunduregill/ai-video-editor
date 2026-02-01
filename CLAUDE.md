@@ -5,6 +5,10 @@
 - Example: `uv run pytest tests/` (NOT `python -m pytest`)
 - Example: `uv run python scripts/pipeline.py` (NOT `python scripts/pipeline.py`)
 
+**Language:** All video content is in **Icelandic** (language code: `is`)
+- Always pass `-l is` when running transcription
+- The CLI should default to Icelandic
+
 ---
 
 ## Project Status (Last Updated: 2026-01-30)
@@ -26,6 +30,8 @@
 
 **Known issues:**
 - Docs reference `src/` but code lives in `scripts/`
+- CLI should default language to Icelandic (`is`)
+- CLI shows misleading "Video file not found" when output directory doesn't exist
 
 ---
 
