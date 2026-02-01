@@ -378,7 +378,7 @@ class TestCliModuleExecution:
         assert hasattr(scripts.__main__, "main")
 
     def test_module_execution_via_subprocess_shows_help(self) -> None:
-        """python -m scripts --help shows help message."""
+        """python -m scripts --help shows help message with subcommands."""
         import subprocess
 
         result = subprocess.run(
@@ -388,10 +388,10 @@ class TestCliModuleExecution:
         )
 
         assert result.returncode == 0
-        assert "video" in result.stdout.lower()
-        assert "--output" in result.stdout
-        assert "--model" in result.stdout
-        assert "--language" in result.stdout
+        # Main help now shows subcommands, not individual flags
+        assert "subtitle" in result.stdout
+        assert "edit" in result.stdout
+        assert "apply-edl" in result.stdout
 
     def test_module_execution_via_subprocess_with_nonexistent_file(self) -> None:
         """python -m scripts with nonexistent file returns exit code 1."""
@@ -435,6 +435,263 @@ class TestCliShortFlags:
         assert args.language == "en"
 
 
+class TestCliSubcommandStructure:
+    """Tests for CLI subcommand argument parsing."""
+
+    def test_parse_args_subtitle_subcommand_accepts_video_path(self) -> None:
+        """CLI subtitle subcommand accepts video path as positional argument."""
+        from scripts.cli import parse_args
+
+        args = parse_args(["subtitle", "video.mp4"])
+
+        assert args.command == "subtitle"
+        assert args.video == "video.mp4"
+
+    def test_parse_args_subtitle_subcommand_accepts_all_flags(self) -> None:
+        """CLI subtitle subcommand accepts all existing flags."""
+        from scripts.cli import parse_args
+
+        args = parse_args([
+            "subtitle", "video.mp4",
+            "--output", "subs.srt",
+            "--model", "large-v2",
+            "--language", "is",
+            "--format", "vtt",
+        ])
+
+        assert args.command == "subtitle"
+        assert args.video == "video.mp4"
+        assert args.output == "subs.srt"
+        assert args.model == "large-v2"
+        assert args.language == "is"
+        assert args.format == "vtt"
+
+    def test_parse_args_edit_subcommand_accepts_video_path(self) -> None:
+        """CLI edit subcommand accepts video path as positional argument."""
+        from scripts.cli import parse_args
+
+        args = parse_args(["edit", "video.mp4"])
+
+        assert args.command == "edit"
+        assert args.video == "video.mp4"
+
+    def test_parse_args_edit_subcommand_accepts_output_flag(self) -> None:
+        """CLI edit subcommand accepts --output flag for EDL path."""
+        from scripts.cli import parse_args
+
+        args = parse_args(["edit", "video.mp4", "--output", "cuts.edl.json"])
+
+        assert args.command == "edit"
+        assert args.output == "cuts.edl.json"
+
+    def test_parse_args_edit_subcommand_accepts_short_output_flag(self) -> None:
+        """CLI edit subcommand accepts -o as short form of --output."""
+        from scripts.cli import parse_args
+
+        args = parse_args(["edit", "video.mp4", "-o", "cuts.edl.json"])
+
+        assert args.output == "cuts.edl.json"
+
+    def test_parse_args_edit_subcommand_accepts_transcript_flag(self) -> None:
+        """CLI edit subcommand accepts --transcript flag for existing transcript."""
+        from scripts.cli import parse_args
+
+        args = parse_args(["edit", "video.mp4", "--transcript", "video.srt"])
+
+        assert args.command == "edit"
+        assert args.transcript == "video.srt"
+
+    def test_parse_args_edit_subcommand_accepts_short_transcript_flag(self) -> None:
+        """CLI edit subcommand accepts -t as short form of --transcript."""
+        from scripts.cli import parse_args
+
+        args = parse_args(["edit", "video.mp4", "-t", "video.srt"])
+
+        assert args.transcript == "video.srt"
+
+    def test_parse_args_edit_subcommand_accepts_auto_flag(self) -> None:
+        """CLI edit subcommand accepts --auto flag for auto-apply."""
+        from scripts.cli import parse_args
+
+        args = parse_args(["edit", "video.mp4", "--auto"])
+
+        assert args.command == "edit"
+        assert args.auto is True
+
+    def test_parse_args_edit_subcommand_auto_default_is_false(self) -> None:
+        """CLI edit subcommand defaults --auto to False."""
+        from scripts.cli import parse_args
+
+        args = parse_args(["edit", "video.mp4"])
+
+        assert args.auto is False
+
+    def test_parse_args_edit_subcommand_default_values(self) -> None:
+        """CLI edit subcommand has correct default values."""
+        from scripts.cli import parse_args
+
+        args = parse_args(["edit", "video.mp4"])
+
+        assert args.output is None
+        assert args.transcript is None
+        assert args.auto is False
+
+    def test_parse_args_apply_edl_subcommand_accepts_video_and_edl(self) -> None:
+        """CLI apply-edl subcommand accepts video path and EDL path."""
+        from scripts.cli import parse_args
+
+        args = parse_args(["apply-edl", "video.mp4", "video.edl.json"])
+
+        assert args.command == "apply-edl"
+        assert args.video == "video.mp4"
+        assert args.edl == "video.edl.json"
+
+    def test_parse_args_apply_edl_subcommand_accepts_output_flag(self) -> None:
+        """CLI apply-edl subcommand accepts --output flag for output video."""
+        from scripts.cli import parse_args
+
+        args = parse_args([
+            "apply-edl", "video.mp4", "video.edl.json",
+            "--output", "video_edited.mp4",
+        ])
+
+        assert args.command == "apply-edl"
+        assert args.output == "video_edited.mp4"
+
+    def test_parse_args_apply_edl_subcommand_accepts_short_output_flag(self) -> None:
+        """CLI apply-edl subcommand accepts -o as short form of --output."""
+        from scripts.cli import parse_args
+
+        args = parse_args([
+            "apply-edl", "video.mp4", "video.edl.json",
+            "-o", "video_edited.mp4",
+        ])
+
+        assert args.output == "video_edited.mp4"
+
+    def test_parse_args_apply_edl_subcommand_default_output_is_none(self) -> None:
+        """CLI apply-edl subcommand defaults output to None."""
+        from scripts.cli import parse_args
+
+        args = parse_args(["apply-edl", "video.mp4", "video.edl.json"])
+
+        assert args.output is None
+
+    def test_parse_args_apply_edl_missing_edl_path_raises_error(self) -> None:
+        """CLI apply-edl raises error when EDL path is not provided."""
+        from scripts.cli import parse_args
+
+        with pytest.raises(SystemExit):
+            parse_args(["apply-edl", "video.mp4"])
+
+
+class TestCliBackwardCompatibility:
+    """Tests for CLI backward compatibility."""
+
+    def test_parse_args_bare_video_path_defaults_to_subtitle(self) -> None:
+        """CLI treats bare video path as subtitle subcommand."""
+        from scripts.cli import parse_args
+
+        args = parse_args(["video.mp4"])
+
+        assert args.command == "subtitle"
+        assert args.video == "video.mp4"
+
+    def test_parse_args_bare_video_path_with_all_flags(self) -> None:
+        """CLI accepts all flags with bare video path (backward compatibility)."""
+        from scripts.cli import parse_args
+
+        args = parse_args([
+            "video.mp4",
+            "--output", "subs.srt",
+            "--model", "large-v2",
+            "--language", "is",
+            "--format", "vtt",
+        ])
+
+        assert args.command == "subtitle"
+        assert args.video == "video.mp4"
+        assert args.output == "subs.srt"
+        assert args.model == "large-v2"
+        assert args.language == "is"
+        assert args.format == "vtt"
+
+    def test_parse_args_bare_video_path_with_short_flags(self) -> None:
+        """CLI accepts short flags with bare video path."""
+        from scripts.cli import parse_args
+
+        args = parse_args(["video.mp4", "-o", "subs.srt", "-m", "small", "-l", "en"])
+
+        assert args.command == "subtitle"
+        assert args.output == "subs.srt"
+        assert args.model == "small"
+        assert args.language == "en"
+
+
+class TestCliSubcommandHelp:
+    """Tests for CLI subcommand help messages."""
+
+    def test_module_execution_shows_subcommands_in_help(self) -> None:
+        """python -m scripts --help shows available subcommands."""
+        import subprocess
+
+        result = subprocess.run(
+            [sys.executable, "-m", "scripts", "--help"],
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0
+        assert "subtitle" in result.stdout
+        assert "edit" in result.stdout
+        assert "apply-edl" in result.stdout
+
+    def test_module_execution_subtitle_subcommand_help(self) -> None:
+        """python -m scripts subtitle --help shows subtitle options."""
+        import subprocess
+
+        result = subprocess.run(
+            [sys.executable, "-m", "scripts", "subtitle", "--help"],
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0
+        assert "--output" in result.stdout
+        assert "--model" in result.stdout
+        assert "--language" in result.stdout
+        assert "--format" in result.stdout
+
+    def test_module_execution_edit_subcommand_help(self) -> None:
+        """python -m scripts edit --help shows edit options."""
+        import subprocess
+
+        result = subprocess.run(
+            [sys.executable, "-m", "scripts", "edit", "--help"],
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0
+        assert "--output" in result.stdout
+        assert "--transcript" in result.stdout
+        assert "--auto" in result.stdout
+
+    def test_module_execution_apply_edl_subcommand_help(self) -> None:
+        """python -m scripts apply-edl --help shows apply-edl options."""
+        import subprocess
+
+        result = subprocess.run(
+            [sys.executable, "-m", "scripts", "apply-edl", "--help"],
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0
+        assert "--output" in result.stdout
+        assert "edl" in result.stdout.lower()
+
+
 class TestCliFormatFlag:
     """Tests for CLI --format flag."""
 
@@ -442,7 +699,7 @@ class TestCliFormatFlag:
         """CLI accepts --format flag for subtitle format."""
         from scripts.cli import parse_args
 
-        args = parse_args(["video.mp4", "--format", "vtt"])
+        args = parse_args(["subtitle", "video.mp4", "--format", "vtt"])
 
         assert args.format == "vtt"
 
@@ -450,7 +707,7 @@ class TestCliFormatFlag:
         """CLI accepts -f as short form of --format."""
         from scripts.cli import parse_args
 
-        args = parse_args(["video.mp4", "-f", "vtt"])
+        args = parse_args(["subtitle", "video.mp4", "-f", "vtt"])
 
         assert args.format == "vtt"
 
@@ -458,7 +715,7 @@ class TestCliFormatFlag:
         """CLI defaults to srt format."""
         from scripts.cli import parse_args
 
-        args = parse_args(["video.mp4"])
+        args = parse_args(["subtitle", "video.mp4"])
 
         assert args.format == "srt"
 
@@ -467,7 +724,7 @@ class TestCliFormatFlag:
         """CLI accepts all valid format choices."""
         from scripts.cli import parse_args
 
-        args = parse_args(["video.mp4", "--format", format_value])
+        args = parse_args(["subtitle", "video.mp4", "--format", format_value])
 
         assert args.format == format_value
 
@@ -476,7 +733,7 @@ class TestCliFormatFlag:
         from scripts.cli import parse_args
 
         with pytest.raises(SystemExit):
-            parse_args(["video.mp4", "--format", "invalid"])
+            parse_args(["subtitle", "video.mp4", "--format", "invalid"])
 
     def test_main_passes_format_to_process_video(
         self, tmp_path: Path
@@ -512,15 +769,306 @@ class TestCliFormatFlag:
         call_kwargs = mock_process.call_args
         assert call_kwargs[1]["subtitle_format"] == "srt"
 
-    def test_module_execution_shows_format_flag_in_help(self) -> None:
-        """python -m scripts --help shows --format flag."""
+    def test_module_execution_shows_format_flag_in_subtitle_help(self) -> None:
+        """python -m scripts subtitle --help shows --format flag."""
         import subprocess
 
         result = subprocess.run(
-            [sys.executable, "-m", "scripts", "--help"],
+            [sys.executable, "-m", "scripts", "subtitle", "--help"],
             capture_output=True,
             text=True,
         )
 
         assert result.returncode == 0
         assert "--format" in result.stdout or "-f" in result.stdout
+
+
+class TestCliEditSubcommandExecution:
+    """Tests for CLI edit subcommand execution."""
+
+    def test_main_edit_calls_edit_video_with_correct_arguments(
+        self, tmp_path: Path
+    ) -> None:
+        """main() edit subcommand calls edit_video with parsed arguments."""
+        from scripts.cli import main
+
+        video_path = tmp_path / "test.mp4"
+        video_path.write_bytes(b"dummy")
+
+        with patch("scripts.cli.edit_video") as mock_edit:
+            mock_edit.return_value = {
+                "edl_path": str(tmp_path / "test.edl.json"),
+                "transcript_for_review": "transcript text",
+                "video_duration": 120.0,
+                "segment_count": 10,
+            }
+
+            exit_code = main(["edit", str(video_path)])
+
+        mock_edit.assert_called_once_with(
+            str(video_path),
+            output_path=None,
+            transcript_path=None,
+            edl_path=None,
+            auto_apply=False,
+        )
+        assert exit_code == 0
+
+    def test_main_edit_passes_output_path(
+        self, tmp_path: Path
+    ) -> None:
+        """main() edit subcommand passes output path to edit_video."""
+        from scripts.cli import main
+
+        video_path = tmp_path / "test.mp4"
+        video_path.write_bytes(b"dummy")
+        edl_path = str(tmp_path / "custom.edl.json")
+
+        with patch("scripts.cli.edit_video") as mock_edit:
+            mock_edit.return_value = {
+                "edl_path": edl_path,
+                "transcript_for_review": "transcript text",
+                "video_duration": 120.0,
+                "segment_count": 10,
+            }
+
+            main(["edit", str(video_path), "--output", edl_path])
+
+        call_kwargs = mock_edit.call_args
+        assert call_kwargs[1]["edl_path"] == edl_path
+
+    def test_main_edit_passes_transcript_path(
+        self, tmp_path: Path
+    ) -> None:
+        """main() edit subcommand passes transcript path to edit_video."""
+        from scripts.cli import main
+
+        video_path = tmp_path / "test.mp4"
+        video_path.write_bytes(b"dummy")
+        transcript_path = str(tmp_path / "existing.srt")
+
+        with patch("scripts.cli.edit_video") as mock_edit:
+            mock_edit.return_value = {
+                "edl_path": str(tmp_path / "test.edl.json"),
+                "transcript_for_review": "transcript text",
+                "video_duration": 120.0,
+                "segment_count": 10,
+            }
+
+            main(["edit", str(video_path), "--transcript", transcript_path])
+
+        call_kwargs = mock_edit.call_args
+        assert call_kwargs[1]["transcript_path"] == transcript_path
+
+    def test_main_edit_passes_auto_flag(
+        self, tmp_path: Path
+    ) -> None:
+        """main() edit subcommand passes auto flag to edit_video."""
+        from scripts.cli import main
+
+        video_path = tmp_path / "test.mp4"
+        video_path.write_bytes(b"dummy")
+
+        with patch("scripts.cli.edit_video") as mock_edit:
+            mock_edit.return_value = {
+                "edl_path": str(tmp_path / "test.edl.json"),
+                "transcript_for_review": "transcript text",
+                "video_duration": 120.0,
+                "segment_count": 10,
+                "edited_video_path": str(tmp_path / "test_edited.mp4"),
+            }
+
+            main(["edit", str(video_path), "--auto"])
+
+        call_kwargs = mock_edit.call_args
+        assert call_kwargs[1]["auto_apply"] is True
+
+    def test_main_edit_prints_edl_path_on_success(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """main() edit subcommand prints EDL path on success."""
+        from scripts.cli import main
+
+        video_path = tmp_path / "test.mp4"
+        video_path.write_bytes(b"dummy")
+        edl_path = str(tmp_path / "test.edl.json")
+
+        with patch("scripts.cli.edit_video") as mock_edit:
+            mock_edit.return_value = {
+                "edl_path": edl_path,
+                "transcript_for_review": "transcript text",
+                "video_duration": 120.0,
+                "segment_count": 10,
+            }
+
+            main(["edit", str(video_path)])
+
+        captured = capsys.readouterr()
+        assert edl_path in captured.out
+
+    def test_main_edit_returns_exit_code_1_on_file_not_found(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """main() edit subcommand returns exit code 1 when video not found."""
+        from scripts.cli import main
+
+        exit_code = main(["edit", "/nonexistent/video.mp4"])
+
+        assert exit_code == 1
+
+    def test_main_edit_prints_error_on_file_not_found(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """main() edit subcommand prints error when video not found."""
+        from scripts.cli import main
+
+        main(["edit", "/nonexistent/video.mp4"])
+
+        captured = capsys.readouterr()
+        assert "Error:" in captured.err
+
+
+class TestCliApplyEdlSubcommandExecution:
+    """Tests for CLI apply-edl subcommand execution."""
+
+    def test_main_apply_edl_calls_apply_edl_to_video_with_correct_arguments(
+        self, tmp_path: Path
+    ) -> None:
+        """main() apply-edl subcommand calls apply_edl_to_video with parsed arguments."""
+        from scripts.cli import main
+
+        video_path = tmp_path / "test.mp4"
+        video_path.write_bytes(b"dummy")
+        edl_path = tmp_path / "test.edl.json"
+        edl_path.write_text('{"source_video": "test.mp4", "segments": [], "total_duration": 120.0}')
+
+        with patch("scripts.cli.apply_edl_to_video") as mock_apply:
+            mock_apply.return_value = str(tmp_path / "test_edited.mp4")
+
+            exit_code = main(["apply-edl", str(video_path), str(edl_path)])
+
+        mock_apply.assert_called_once_with(
+            str(video_path),
+            str(edl_path),
+            None,
+        )
+        assert exit_code == 0
+
+    def test_main_apply_edl_passes_output_path(
+        self, tmp_path: Path
+    ) -> None:
+        """main() apply-edl subcommand passes output path to apply_edl_to_video."""
+        from scripts.cli import main
+
+        video_path = tmp_path / "test.mp4"
+        video_path.write_bytes(b"dummy")
+        edl_path = tmp_path / "test.edl.json"
+        edl_path.write_text('{}')
+        output_path = str(tmp_path / "custom_output.mp4")
+
+        with patch("scripts.cli.apply_edl_to_video") as mock_apply:
+            mock_apply.return_value = output_path
+
+            main(["apply-edl", str(video_path), str(edl_path), "--output", output_path])
+
+        call_args = mock_apply.call_args
+        assert call_args[0][2] == output_path
+
+    def test_main_apply_edl_prints_output_path_on_success(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """main() apply-edl subcommand prints output video path on success."""
+        from scripts.cli import main
+
+        video_path = tmp_path / "test.mp4"
+        video_path.write_bytes(b"dummy")
+        edl_path = tmp_path / "test.edl.json"
+        edl_path.write_text('{}')
+        output_path = str(tmp_path / "test_edited.mp4")
+
+        with patch("scripts.cli.apply_edl_to_video") as mock_apply:
+            mock_apply.return_value = output_path
+
+            main(["apply-edl", str(video_path), str(edl_path)])
+
+        captured = capsys.readouterr()
+        assert output_path in captured.out
+
+    def test_main_apply_edl_returns_exit_code_1_on_video_not_found(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """main() apply-edl subcommand returns exit code 1 when video not found."""
+        from scripts.cli import main
+
+        edl_path = tmp_path / "test.edl.json"
+        edl_path.write_text('{}')
+
+        exit_code = main(["apply-edl", "/nonexistent/video.mp4", str(edl_path)])
+
+        assert exit_code == 1
+
+    def test_main_apply_edl_returns_exit_code_1_on_edl_not_found(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """main() apply-edl subcommand returns exit code 1 when EDL not found."""
+        from scripts.cli import main
+
+        video_path = tmp_path / "test.mp4"
+        video_path.write_bytes(b"dummy")
+
+        exit_code = main(["apply-edl", str(video_path), "/nonexistent/edl.json"])
+
+        assert exit_code == 1
+
+    def test_main_apply_edl_prints_error_on_file_not_found(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """main() apply-edl subcommand prints error when file not found."""
+        from scripts.cli import main
+
+        edl_path = tmp_path / "test.edl.json"
+        edl_path.write_text('{}')
+
+        main(["apply-edl", "/nonexistent/video.mp4", str(edl_path)])
+
+        captured = capsys.readouterr()
+        assert "Error:" in captured.err
+
+    def test_main_apply_edl_returns_exit_code_1_on_video_cutting_error(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """main() apply-edl subcommand returns exit code 1 on video cutting error."""
+        from scripts.cli import main
+        from scripts.exceptions import VideoCuttingError
+
+        video_path = tmp_path / "test.mp4"
+        video_path.write_bytes(b"dummy")
+        edl_path = tmp_path / "test.edl.json"
+        edl_path.write_text('{}')
+
+        with patch("scripts.cli.apply_edl_to_video") as mock_apply:
+            mock_apply.side_effect = VideoCuttingError("FFmpeg failed")
+
+            exit_code = main(["apply-edl", str(video_path), str(edl_path)])
+
+        assert exit_code == 1
+
+    def test_main_apply_edl_prints_error_on_video_cutting_error(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """main() apply-edl subcommand prints error on video cutting error."""
+        from scripts.cli import main
+        from scripts.exceptions import VideoCuttingError
+
+        video_path = tmp_path / "test.mp4"
+        video_path.write_bytes(b"dummy")
+        edl_path = tmp_path / "test.edl.json"
+        edl_path.write_text('{}')
+
+        with patch("scripts.cli.apply_edl_to_video") as mock_apply:
+            mock_apply.side_effect = VideoCuttingError("FFmpeg failed")
+
+            main(["apply-edl", str(video_path), str(edl_path)])
+
+        captured = capsys.readouterr()
+        assert "Error:" in captured.err
