@@ -23,3 +23,15 @@ class TranscriptCorrectionError(SubtitleError):
     """Raised when transcript correction fails."""
 
     pass
+
+
+class VideoCuttingError(Exception):
+    """Raised when video cutting fails."""
+
+    pass
+
+
+class EDLValidationError(Exception):
+    """Raised when EDL validation fails."""
+
+    pass
