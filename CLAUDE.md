@@ -12,19 +12,18 @@
 
 ## Project Status (Last Updated: 2026-02-01)
 
-**Phase:** CLI complete, ready for additional features
+**Phase:** Subtitle pipeline complete with CLI
 
 **Completed:**
 - ✅ Audio extraction (`scripts/audio_extractor.py`) - ffmpeg-based WAV extraction
 - ✅ Transcription (`scripts/transcription.py`) - faster-whisper integration
-- ✅ Subtitle writing (`scripts/subtitle_writer.py`) - SRT format output
+- ✅ Subtitle writing (`scripts/subtitle_writer.py`) - SRT and VTT format output
 - ✅ Transcript correction (`scripts/transcript_corrector.py`) - LLM-assisted review utilities
 - ✅ Main pipeline (`scripts/pipeline.py`) - `process_video()` orchestrates full workflow
 - ✅ CLI interface (`scripts/cli.py`) - `uv run python -m scripts video.mp4`
-- ✅ Test suite - 113 tests passing
+- ✅ Test suite - 143 tests passing
 
 **Next up:**
-- [ ] VTT subtitle format support
 - [ ] Actual video editing features (beyond subtitles)
 
 **Known issues:**
