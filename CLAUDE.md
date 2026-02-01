@@ -45,39 +45,32 @@ We are using test driven development.
 
 3. **Browser is for the user** - If opening the browser to play video, just open and play it. Don't take screenshots or "verify" things - let the user watch.
 
-## Transcript Correction Workflow
+## Transcription Workflow
 
-### Workflow Steps
+For any new video transcription, follow this complete workflow:
 
-1. **Run transcription pipeline** - Extract audio from video, then run Whisper API to generate initial transcript
-2. **Spawn reviewer subagent** - Pass transcript and video context to a reviewer agent for correction
-3. **Reviewer returns corrections** - Subagent identifies errors and returns corrections
-4. **Apply corrections** - Use correction functions to fix transcript and write final SRT
+### Steps
+
+1. **Transcribe** - Run CLI to generate SRT
+   ```bash
+   uv run python -m scripts video.mp4 -o output.srt
+   ```
+
+2. **Icelandic Review** - Spawn `icelandic-reviewer` agent (or `general-purpose` with reviewer prompt) to review the SRT file. The reviewer:
+   - Reads entire transcript to understand context
+   - Identifies Whisper errors (mishearings, gibberish, artifacts)
+   - Returns corrections dict
+
+3. **Apply Corrections** - Use `correct_transcript()` to apply the corrections
+
+4. **Generate VTT** - Re-run CLI with `-f vtt` or use `write_vtt()` directly
+
+5. **Open Browser** - Start HTTP server and open video player for user to watch (no screenshots, just play)
 
 ### Key Functions
 
-- `format_for_review()` - Formats transcript segments for LLM review (numbered lines with timestamps)
-- `parse_corrected_transcript()` - Parses corrected text back into segment objects
-- `correct_transcript()` - Applies targeted corrections to specific segments by index
+- `correct_transcript(segments, corrections)` - Applies corrections by segment index
 
-### Usage Example
+### Agents
 
-```python
-from scripts.transcription import transcribe_audio
-from scripts.transcript_corrector import format_for_review, correct_transcript
-
-# 1. Get initial transcript
-segments = transcribe_audio("audio.wav")
-
-# 2. Format for reviewer subagent
-review_text = format_for_review(segments)
-
-# 3. After reviewer returns corrections, apply them
-corrections = {
-    0: "Fixed text for first segment",
-    5: "Fixed text for sixth segment"
-}
-corrected_segments = correct_transcript(segments, corrections)
-```
-
-In a Claude Code session, spawn a reviewer subagent with the formatted transcript and any relevant context (video topic, speaker names, technical terms). The reviewer analyzes and returns a corrections dict.
+- **icelandic-reviewer** - Reviews Icelandic subtitles, knows slang (e.g., "skvísa" = girl/chick), marks unclear text as [óljóst]
