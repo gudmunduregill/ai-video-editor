@@ -8,6 +8,9 @@
 **Language:** All video content is in **Icelandic** (language code: `is`)
 - The CLI defaults to Icelandic (`-l is`)
 
+**Model:** Always use `large-v2` for transcription (better accuracy for Icelandic)
+- The CLI defaults to `large-v2`
+
 ---
 
 ## Project Status (Last Updated: 2026-02-01)
