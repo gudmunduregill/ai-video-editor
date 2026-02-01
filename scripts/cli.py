@@ -42,9 +42,9 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
     parser.add_argument(
         "--model",
         "-m",
-        help="Whisper model size (default: base)",
+        help="Whisper model size (default: large-v2)",
         choices=MODEL_CHOICES,
-        default="base",
+        default="large-v2",
     )
 
     parser.add_argument(

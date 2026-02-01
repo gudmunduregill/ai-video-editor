@@ -67,7 +67,7 @@ class TestCliArgumentParsing:
         args = parse_args(["video.mp4"])
 
         assert args.output is None
-        assert args.model == "base"
+        assert args.model == "large-v2"
         assert args.language == "is"
 
     def test_parse_args_missing_video_path_raises_error(self) -> None:
@@ -118,7 +118,7 @@ class TestCliMainFunction:
         mock_process.assert_called_once_with(
             str(video_path),
             output_path=None,
-            model_size="base",
+            model_size="large-v2",
             language="is",
             subtitle_format="srt",
         )
