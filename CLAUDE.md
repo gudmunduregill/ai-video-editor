@@ -41,6 +41,10 @@ We are using test driven development.
 
 1. **Delegate code writing to subagents** - The main agent should not write code directly. Instead, use the Task tool to spawn subagents for all code writing tasks.
 
+2. **No browser testing** - To verify subtitle content, just read the SRT/VTT files directly. Don't use Playwright for verification.
+
+3. **Browser is for the user** - If opening the browser to play video, just open and play it. Don't take screenshots or "verify" things - let the user watch.
+
 ## Transcript Correction Workflow
 
 ### Workflow Steps
