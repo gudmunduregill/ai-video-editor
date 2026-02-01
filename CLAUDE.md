@@ -6,14 +6,13 @@
 - Example: `uv run python scripts/pipeline.py` (NOT `python scripts/pipeline.py`)
 
 **Language:** All video content is in **Icelandic** (language code: `is`)
-- Always pass `-l is` when running transcription
-- The CLI should default to Icelandic
+- The CLI defaults to Icelandic (`-l is`)
 
 ---
 
-## Project Status (Last Updated: 2026-01-30)
+## Project Status (Last Updated: 2026-02-01)
 
-**Phase:** Subtitle generation pipeline complete, ready for CLI
+**Phase:** CLI complete, ready for additional features
 
 **Completed:**
 - ✅ Audio extraction (`scripts/audio_extractor.py`) - ffmpeg-based WAV extraction
@@ -21,17 +20,15 @@
 - ✅ Subtitle writing (`scripts/subtitle_writer.py`) - SRT format output
 - ✅ Transcript correction (`scripts/transcript_corrector.py`) - LLM-assisted review utilities
 - ✅ Main pipeline (`scripts/pipeline.py`) - `process_video()` orchestrates full workflow
+- ✅ CLI interface (`scripts/cli.py`) - `uv run python -m scripts video.mp4`
 - ✅ Test suite - 113 tests passing
 
 **Next up:**
-- [ ] CLI interface for end users
 - [ ] VTT subtitle format support
 - [ ] Actual video editing features (beyond subtitles)
 
 **Known issues:**
 - Docs reference `src/` but code lives in `scripts/`
-- CLI should default language to Icelandic (`is`)
-- CLI shows misleading "Video file not found" when output directory doesn't exist
 
 ---
 
