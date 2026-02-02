@@ -10,14 +10,16 @@ This module provides functions for the complete video editing pipeline:
 import os
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Generator, Optional
 
 from scripts.edit_analyzer import format_transcript_for_editing
+import json
+
 from scripts.edit_decision import (
     EditAction,
     EditDecisionList,
     EditSegment,
-    edl_from_json,
+    edl_from_dict,
     edl_to_json,
 )
 from scripts.pipeline import process_video
@@ -53,9 +55,90 @@ def _parse_srt_timestamp(timestamp: str) -> float:
     return total_seconds
 
 
+def _iter_srt_segments(transcript_path: str) -> "Generator[TranscriptSegment, None, None]":
+    """
+    Stream-parse an SRT file, yielding TranscriptSegment objects one at a time.
+
+    This is memory-efficient as it reads the file line-by-line instead of
+    loading the entire file into memory.
+
+    Args:
+        transcript_path: Path to the SRT file
+
+    Yields:
+        TranscriptSegment objects as they are parsed
+
+    Raises:
+        FileNotFoundError: If the file does not exist
+    """
+    if not os.path.exists(transcript_path):
+        raise FileNotFoundError(f"Transcript file not found: {transcript_path}")
+
+    # State for parsing SRT blocks
+    # States: 'number', 'timestamp', 'text', 'blank'
+    state = "number"
+    current_start: float = 0.0
+    current_end: float = 0.0
+    text_lines: list[str] = []
+
+    with open(transcript_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.rstrip("\n\r")
+
+            if state == "number":
+                # Expecting subtitle number (skip it)
+                if line.strip().isdigit():
+                    state = "timestamp"
+                elif line.strip() == "":
+                    # Extra blank line, stay in number state
+                    pass
+                # else: malformed, try next line
+
+            elif state == "timestamp":
+                # Expecting timestamp line
+                timestamp_match = re.match(
+                    r"(\d{2}:\d{2}:\d{2},\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2},\d{3})",
+                    line.strip(),
+                )
+                if timestamp_match:
+                    current_start = _parse_srt_timestamp(timestamp_match.group(1))
+                    current_end = _parse_srt_timestamp(timestamp_match.group(2))
+                    text_lines = []
+                    state = "text"
+                else:
+                    # Malformed, reset to looking for number
+                    state = "number"
+
+            elif state == "text":
+                if line.strip() == "":
+                    # Blank line signals end of this subtitle block
+                    if text_lines:
+                        yield TranscriptSegment(
+                            start=current_start,
+                            end=current_end,
+                            text="\n".join(text_lines),
+                        )
+                    state = "number"
+                else:
+                    # Accumulate text lines
+                    text_lines.append(line)
+
+        # Handle last segment if file doesn't end with blank line
+        if state == "text" and text_lines:
+            yield TranscriptSegment(
+                start=current_start,
+                end=current_end,
+                text="\n".join(text_lines),
+            )
+
+
 def _load_transcript(transcript_path: str) -> list[TranscriptSegment]:
     """
     Parse an SRT file into TranscriptSegment objects.
+
+    Note: This returns a list because downstream callers (format_transcript_for_editing,
+    _create_initial_edl) require indexed access to segments. The streaming parser
+    _iter_srt_segments is used internally for memory efficiency during parsing.
 
     Args:
         transcript_path: Path to the SRT file
@@ -66,50 +149,7 @@ def _load_transcript(transcript_path: str) -> list[TranscriptSegment]:
     Raises:
         FileNotFoundError: If the file does not exist
     """
-    if not os.path.exists(transcript_path):
-        raise FileNotFoundError(f"Transcript file not found: {transcript_path}")
-
-    with open(transcript_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    if not content.strip():
-        return []
-
-    segments: list[TranscriptSegment] = []
-
-    # Split into subtitle blocks (separated by blank lines)
-    blocks = re.split(r"\n\s*\n", content.strip())
-
-    for block in blocks:
-        lines = block.strip().split("\n")
-        if len(lines) < 3:
-            continue
-
-        # Line 0: subtitle number (skip)
-        # Line 1: timestamps
-        # Lines 2+: text content
-        timestamp_line = lines[1]
-
-        # Parse timestamps: "00:00:00,000 --> 00:00:05,000"
-        timestamp_match = re.match(
-            r"(\d{2}:\d{2}:\d{2},\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2},\d{3})",
-            timestamp_line,
-        )
-        if not timestamp_match:
-            continue
-
-        start_ts = timestamp_match.group(1)
-        end_ts = timestamp_match.group(2)
-
-        start = _parse_srt_timestamp(start_ts)
-        end = _parse_srt_timestamp(end_ts)
-
-        # Combine remaining lines as text
-        text = "\n".join(lines[2:])
-
-        segments.append(TranscriptSegment(start=start, end=end, text=text))
-
-    return segments
+    return list(_iter_srt_segments(transcript_path))
 
 
 def _create_initial_edl(
@@ -256,11 +296,11 @@ def apply_edl_to_video(
     if not os.path.exists(edl_path):
         raise FileNotFoundError(f"EDL file not found: {edl_path}")
 
-    # Load EDL from JSON
+    # Load EDL from JSON - use json.load directly on file handle for memory efficiency
     with open(edl_path, "r", encoding="utf-8") as f:
-        json_content = f.read()
+        edl_data = json.load(f)
 
-    edl = edl_from_json(json_content)
+    edl = edl_from_dict(edl_data)
 
     # Apply cuts using video_cutter
     return cut_video(video_path, edl, output_path)

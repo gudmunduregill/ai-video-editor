@@ -220,6 +220,8 @@ def get_video_duration(video_path: str) -> float:
         raise FileNotFoundError(f"Video file not found: {video_path}")
 
     try:
+        # Use stdout=PIPE for duration output, stderr=DEVNULL to avoid buffering
+        # FFmpeg logs (we already use -v error to minimize output)
         result = subprocess.run(
             [
                 "ffprobe",
@@ -228,16 +230,16 @@ def get_video_duration(video_path: str) -> float:
                 "-of", "default=noprint_wrappers=1:nokey=1",
                 video_path,
             ],
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
             text=True,
             check=True,
         )
         duration_str = result.stdout.strip()
         return float(duration_str)
     except subprocess.CalledProcessError as e:
-        stderr = e.stderr if e.stderr else "Unknown error"
         raise VideoCuttingError(
-            f"Failed to get duration for {video_path}: {stderr}"
+            f"Failed to get duration for {video_path}: ffprobe failed"
         ) from e
     except ValueError as e:
         raise VideoCuttingError(
@@ -253,9 +255,11 @@ def _check_ffmpeg_available() -> None:
         VideoCuttingError: If ffmpeg is not found
     """
     try:
+        # Discard all output - we only care if the command succeeds
         subprocess.run(
             ["ffmpeg", "-version"],
-            capture_output=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             check=True,
         )
     except FileNotFoundError:
@@ -263,10 +267,8 @@ def _check_ffmpeg_available() -> None:
             "ffmpeg is not installed or not found in PATH. "
             "Please install ffmpeg to cut videos."
         )
-    except subprocess.CalledProcessError as e:
-        raise VideoCuttingError(
-            f"ffmpeg check failed: {e.stderr.decode('utf-8') if e.stderr else 'Unknown error'}"
-        )
+    except subprocess.CalledProcessError:
+        raise VideoCuttingError("ffmpeg check failed")
 
 
 def _should_use_concat_demuxer(segment_count: int) -> bool:
@@ -347,15 +349,17 @@ def _cut_segment_to_file(
     ]
 
     try:
+        # Discard FFmpeg output - we only care if the command succeeds.
+        # This avoids unbounded memory buffering for large video processing.
         subprocess.run(
             cmd,
-            capture_output=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             check=True,
         )
     except subprocess.CalledProcessError as e:
-        stderr = e.stderr.decode("utf-8") if e.stderr else "Unknown error"
         raise VideoCuttingError(
-            f"Failed to cut segment [{segment.start}-{segment.end}]: {stderr}"
+            f"Failed to cut segment [{segment.start}-{segment.end}]"
         ) from e
 
 
@@ -411,15 +415,17 @@ def _cut_video_with_concat_demuxer(
         ]
 
         try:
+            # Discard FFmpeg output - we only care if the command succeeds.
+            # This avoids unbounded memory buffering for large video processing.
             subprocess.run(
                 concat_cmd,
-                capture_output=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
                 check=True,
             )
         except subprocess.CalledProcessError as e:
-            stderr = e.stderr.decode("utf-8") if e.stderr else "Unknown error"
             raise VideoCuttingError(
-                f"Failed to concatenate segments: {stderr}"
+                f"Failed to concatenate segments"
             ) from e
 
         # Step 4: Cleanup happens automatically via TemporaryDirectory context
@@ -458,9 +464,12 @@ def _cut_video_with_filter_complex(
         output_path,
     ]
 
-    # Run the ffmpeg command
+    # Run the ffmpeg command.
+    # Discard FFmpeg output - we only care if the command succeeds.
+    # This avoids unbounded memory buffering for large video processing.
     subprocess.run(
         cmd,
-        capture_output=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
         check=True,
     )

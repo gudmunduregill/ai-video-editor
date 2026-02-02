@@ -12,6 +12,7 @@ from scripts.edit_decision import (
     EditDecisionList,
     EditSegment,
     apply_edl_corrections,
+    edl_from_dict,
     edl_from_json,
     edl_to_json,
     format_edl_for_review,
@@ -363,6 +364,89 @@ class TestEdlToJson:
         parsed = json.loads(result)
 
         assert parsed["segments"] == []
+
+
+# ============================================================================
+# edl_from_dict Tests
+# ============================================================================
+
+
+class TestEdlFromDict:
+    """Tests for the edl_from_dict function (memory-efficient dict-based loading)."""
+
+    def test_deserialize_from_dict(self) -> None:
+        """Test deserializing an EDL from a dictionary."""
+        data = {
+            "source_video": "test.mp4",
+            "total_duration": 10.0,
+            "segments": [
+                {
+                    "start": 0.0,
+                    "end": 5.0,
+                    "action": "keep",
+                    "reason": "Good",
+                    "transcript_indices": [0],
+                }
+            ],
+        }
+
+        result = edl_from_dict(data)
+
+        assert isinstance(result, EditDecisionList)
+        assert result.source_video == "test.mp4"
+        assert result.total_duration == 10.0
+        assert len(result.segments) == 1
+
+    def test_dict_preserves_segment_data(self) -> None:
+        """Test that all segment data is preserved when loading from dict."""
+        data = {
+            "source_video": "video.mp4",
+            "total_duration": 15.0,
+            "segments": [
+                {
+                    "start": 5.5,
+                    "end": 10.5,
+                    "action": "remove",
+                    "reason": "Filler content",
+                    "transcript_indices": [2, 3],
+                }
+            ],
+        }
+
+        result = edl_from_dict(data)
+        segment = result.segments[0]
+
+        assert segment.start == 5.5
+        assert segment.end == 10.5
+        assert segment.action == EditAction.REMOVE
+        assert segment.reason == "Filler content"
+        assert segment.transcript_indices == [2, 3]
+
+    def test_dict_missing_field_raises_key_error(self) -> None:
+        """Test that missing required fields raise KeyError."""
+        data = {
+            "source_video": "test.mp4",
+            # Missing total_duration and segments
+        }
+
+        with pytest.raises(KeyError):
+            edl_from_dict(data)
+
+    def test_edl_from_json_uses_edl_from_dict(self) -> None:
+        """Test that edl_from_json delegates to edl_from_dict internally."""
+        json_str = """{
+            "source_video": "test.mp4",
+            "total_duration": 10.0,
+            "segments": []
+        }"""
+
+        # Both should produce equivalent results
+        from_json = edl_from_json(json_str)
+        from_dict = edl_from_dict(json.loads(json_str))
+
+        assert from_json.source_video == from_dict.source_video
+        assert from_json.total_duration == from_dict.total_duration
+        assert len(from_json.segments) == len(from_dict.segments)
 
 
 # ============================================================================

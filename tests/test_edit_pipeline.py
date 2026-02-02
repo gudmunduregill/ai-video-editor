@@ -477,6 +477,104 @@ class TestApplyEdlToVideo:
             apply_edl_to_video(str(video_path), str(edl_path))
 
 
+class TestIterSrtSegments:
+    """Tests for _iter_srt_segments streaming parser."""
+
+    def test_iter_srt_segments_yields_segments(
+        self, tmp_path: Path, sample_srt_content: str
+    ) -> None:
+        """_iter_srt_segments yields TranscriptSegment objects."""
+        from scripts.edit_pipeline import _iter_srt_segments
+
+        srt_path = tmp_path / "test.srt"
+        srt_path.write_text(sample_srt_content)
+
+        segments = list(_iter_srt_segments(str(srt_path)))
+
+        assert len(segments) == 3
+        assert segments[0].text == "Hello everyone"
+        assert segments[1].text == "Umm, let me think"
+        assert segments[2].text == "So the answer is yes"
+
+    def test_iter_srt_segments_is_generator(
+        self, tmp_path: Path, sample_srt_content: str
+    ) -> None:
+        """_iter_srt_segments returns a generator, not a list."""
+        from scripts.edit_pipeline import _iter_srt_segments
+        from types import GeneratorType
+
+        srt_path = tmp_path / "test.srt"
+        srt_path.write_text(sample_srt_content)
+
+        result = _iter_srt_segments(str(srt_path))
+
+        assert isinstance(result, GeneratorType)
+
+    def test_iter_srt_segments_handles_no_trailing_newline(
+        self, tmp_path: Path
+    ) -> None:
+        """_iter_srt_segments handles file without trailing blank line."""
+        from scripts.edit_pipeline import _iter_srt_segments
+
+        # SRT content without trailing blank line
+        srt_content = """1
+00:00:00,000 --> 00:00:05,000
+Hello everyone"""
+        srt_path = tmp_path / "test.srt"
+        srt_path.write_text(srt_content)
+
+        segments = list(_iter_srt_segments(str(srt_path)))
+
+        assert len(segments) == 1
+        assert segments[0].text == "Hello everyone"
+
+    def test_iter_srt_segments_file_not_found(self) -> None:
+        """_iter_srt_segments raises FileNotFoundError for missing file."""
+        from scripts.edit_pipeline import _iter_srt_segments
+
+        with pytest.raises(FileNotFoundError):
+            # Need to consume the generator to trigger the error
+            list(_iter_srt_segments("/path/to/nonexistent.srt"))
+
+    def test_iter_srt_segments_empty_file(self, tmp_path: Path) -> None:
+        """_iter_srt_segments handles empty SRT file."""
+        from scripts.edit_pipeline import _iter_srt_segments
+
+        srt_path = tmp_path / "empty.srt"
+        srt_path.write_text("")
+
+        segments = list(_iter_srt_segments(str(srt_path)))
+
+        assert segments == []
+
+    def test_iter_srt_segments_handles_extra_blank_lines(
+        self, tmp_path: Path
+    ) -> None:
+        """_iter_srt_segments handles SRT with extra blank lines."""
+        from scripts.edit_pipeline import _iter_srt_segments
+
+        srt_content = """
+
+1
+00:00:00,000 --> 00:00:05,000
+First segment
+
+
+2
+00:00:05,000 --> 00:00:10,000
+Second segment
+
+"""
+        srt_path = tmp_path / "test.srt"
+        srt_path.write_text(srt_content)
+
+        segments = list(_iter_srt_segments(str(srt_path)))
+
+        assert len(segments) == 2
+        assert segments[0].text == "First segment"
+        assert segments[1].text == "Second segment"
+
+
 class TestParseSrtTimestamp:
     """Tests for _parse_srt_timestamp helper function."""
 

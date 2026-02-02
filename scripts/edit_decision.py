@@ -89,21 +89,21 @@ def edl_to_json(edl: EditDecisionList) -> str:
     return json.dumps(data, indent=2)
 
 
-def edl_from_json(json_str: str) -> EditDecisionList:
-    """Deserialize an EditDecisionList from JSON string.
+def edl_from_dict(data: dict) -> EditDecisionList:
+    """Deserialize an EditDecisionList from a dictionary.
+
+    This is the memory-efficient entry point when loading from a file,
+    as it avoids creating an intermediate string representation.
 
     Args:
-        json_str: JSON string to deserialize
+        data: Dictionary with EDL data
 
     Returns:
         EditDecisionList object
 
     Raises:
-        json.JSONDecodeError: If JSON is invalid
         KeyError: If required fields are missing
     """
-    data = json.loads(json_str)
-
     segments = [
         EditSegment(
             start=seg["start"],
@@ -120,6 +120,26 @@ def edl_from_json(json_str: str) -> EditDecisionList:
         segments=segments,
         total_duration=data["total_duration"],
     )
+
+
+def edl_from_json(json_str: str) -> EditDecisionList:
+    """Deserialize an EditDecisionList from JSON string.
+
+    Note: For file loading, prefer using json.load(f) with edl_from_dict()
+    to avoid loading the entire file content as a string first.
+
+    Args:
+        json_str: JSON string to deserialize
+
+    Returns:
+        EditDecisionList object
+
+    Raises:
+        json.JSONDecodeError: If JSON is invalid
+        KeyError: If required fields are missing
+    """
+    data = json.loads(json_str)
+    return edl_from_dict(data)
 
 
 def format_edl_for_review(edl: EditDecisionList) -> str:
