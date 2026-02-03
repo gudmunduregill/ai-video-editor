@@ -11,6 +11,7 @@ from scripts.exceptions import (
     TranscriptionError,
     VideoCuttingError,
 )
+from scripts.llm_client import LLMClientError
 from scripts.pipeline import process_video
 
 
@@ -125,6 +126,13 @@ def _create_edit_parser(subparsers: argparse._SubParsersAction) -> None:
         default=False,
     )
 
+    edit_parser.add_argument(
+        "--ai",
+        action="store_true",
+        help="Use AI to analyze transcript and suggest edits",
+        default=False,
+    )
+
 
 def _create_apply_edl_parser(subparsers: argparse._SubParsersAction) -> None:
     """Create the apply-edl subcommand parser."""
@@ -148,6 +156,12 @@ def _create_apply_edl_parser(subparsers: argparse._SubParsersAction) -> None:
         "--output",
         "-o",
         help="Path for the output video file (default: video_edited.mp4)",
+        default=None,
+    )
+
+    apply_edl_parser.add_argument(
+        "--srt",
+        help="Path to input SRT file to adjust timestamps for cut video",
         default=None,
     )
 
@@ -227,7 +241,10 @@ def _run_subtitle(args: argparse.Namespace) -> int:
 
 def _run_edit(args: argparse.Namespace) -> int:
     """Run the edit subcommand."""
-    print(f"Generating EDL for video: {args.video}")
+    if args.ai:
+        print(f"Analyzing video with AI: {args.video}")
+    else:
+        print(f"Generating EDL for video: {args.video}")
 
     try:
         result = edit_video(
@@ -236,10 +253,13 @@ def _run_edit(args: argparse.Namespace) -> int:
             transcript_path=args.transcript,
             edl_path=args.output,
             auto_apply=args.auto,
+            use_ai=args.ai,
         )
         print(f"EDL saved to: {result['edl_path']}")
         print(f"Segments: {result['segment_count']}")
         print(f"Duration: {result['video_duration']:.2f}s")
+        if result.get("ai_used"):
+            print("AI analysis: enabled")
 
         if args.auto and "edited_video_path" in result:
             print(f"Edited video saved to: {result['edited_video_path']}")
@@ -266,6 +286,10 @@ def _run_edit(args: argparse.Namespace) -> int:
         print(f"Error: Invalid EDL: {e}", file=sys.stderr)
         return 1
 
+    except LLMClientError as e:
+        print(f"Error: AI analysis failed: {e}", file=sys.stderr)
+        return 1
+
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
@@ -276,12 +300,19 @@ def _run_apply_edl(args: argparse.Namespace) -> int:
     print(f"Applying EDL to video: {args.video}")
 
     try:
-        output_path = apply_edl_to_video(
+        result = apply_edl_to_video(
             args.video,
             args.edl,
             args.output,
+            srt_path=args.srt,
         )
-        print(f"Edited video saved to: {output_path}")
+
+        # Handle dict return type when SRT provided
+        if isinstance(result, dict):
+            print(f"Edited video saved to: {result['video_path']}")
+            print(f"Adjusted subtitles saved to: {result['srt_path']}")
+        else:
+            print(f"Edited video saved to: {result}")
         return 0
 
     except FileNotFoundError as e:
