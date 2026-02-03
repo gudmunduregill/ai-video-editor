@@ -606,3 +606,552 @@ class TestParseSrtTimestamp:
 
         with pytest.raises(ValueError):
             _parse_srt_timestamp("invalid")
+
+
+class TestParseAiResponse:
+    """Tests for _parse_ai_response function."""
+
+    def test_parse_ai_response_basic(
+        self, sample_transcript_segments: list[TranscriptSegment]
+    ) -> None:
+        """_parse_ai_response parses basic KEEP/REMOVE format."""
+        from scripts.edit_pipeline import _parse_ai_response
+
+        ai_response = """
+[KEEP] 0: Introduction
+[REMOVE] 1: "Umm, let me think" - Filler
+[KEEP] 2: Main content
+"""
+        result = _parse_ai_response(ai_response, sample_transcript_segments)
+
+        assert len(result) == 3
+        assert result[0].action == EditAction.KEEP
+        assert result[0].transcript_indices == [0]
+        assert result[1].action == EditAction.REMOVE
+        assert result[1].transcript_indices == [1]
+        assert result[1].reason == '"Umm, let me think" - Filler'
+        assert result[2].action == EditAction.KEEP
+        assert result[2].transcript_indices == [2]
+
+    def test_parse_ai_response_range_indices(
+        self, sample_transcript_segments: list[TranscriptSegment]
+    ) -> None:
+        """_parse_ai_response handles index ranges like 0-2."""
+        from scripts.edit_pipeline import _parse_ai_response
+
+        ai_response = "[KEEP] 0-2: All content"
+
+        result = _parse_ai_response(ai_response, sample_transcript_segments)
+
+        assert len(result) == 1
+        assert result[0].transcript_indices == [0, 1, 2]
+        assert result[0].start == 0.0
+        assert result[0].end == 15.0  # End of segment 2
+
+    def test_parse_ai_response_treats_review_as_keep(
+        self, sample_transcript_segments: list[TranscriptSegment]
+    ) -> None:
+        """_parse_ai_response treats [REVIEW] as [KEEP]."""
+        from scripts.edit_pipeline import _parse_ai_response
+
+        ai_response = "[REVIEW] 0: Borderline content"
+
+        result = _parse_ai_response(ai_response, sample_transcript_segments)
+
+        assert len(result) == 1
+        assert result[0].action == EditAction.KEEP
+        assert result[0].reason is None  # KEEP/REVIEW don't have reasons
+
+    def test_parse_ai_response_handles_empty_response(
+        self, sample_transcript_segments: list[TranscriptSegment]
+    ) -> None:
+        """_parse_ai_response returns empty list for empty response."""
+        from scripts.edit_pipeline import _parse_ai_response
+
+        result = _parse_ai_response("", sample_transcript_segments)
+        assert result == []
+
+        result = _parse_ai_response("   ", sample_transcript_segments)
+        assert result == []
+
+    def test_parse_ai_response_skips_invalid_indices(
+        self, sample_transcript_segments: list[TranscriptSegment], capsys: pytest.CaptureFixture
+    ) -> None:
+        """_parse_ai_response skips and warns about invalid indices."""
+        from scripts.edit_pipeline import _parse_ai_response
+
+        ai_response = """
+[KEEP] 0: Valid
+[KEEP] 99: Invalid index
+[KEEP] 2: Also valid
+"""
+        result = _parse_ai_response(ai_response, sample_transcript_segments)
+
+        assert len(result) == 2  # Skipped invalid index 99
+        captured = capsys.readouterr()
+        assert "Warning" in captured.err
+        assert "99" in captured.err
+
+    def test_parse_ai_response_ignores_non_matching_lines(
+        self, sample_transcript_segments: list[TranscriptSegment]
+    ) -> None:
+        """_parse_ai_response ignores lines that don't match the pattern."""
+        from scripts.edit_pipeline import _parse_ai_response
+
+        ai_response = """
+## Video Context
+This is a test video
+
+## Edit Summary
+2 segments to keep, 1 to remove
+
+[KEEP] 0: Intro
+Random text that should be ignored
+[REMOVE] 1: Filler - retake
+[KEEP] 2: Content
+"""
+        result = _parse_ai_response(ai_response, sample_transcript_segments)
+
+        assert len(result) == 3
+
+    def test_parse_ai_response_case_insensitive(
+        self, sample_transcript_segments: list[TranscriptSegment]
+    ) -> None:
+        """_parse_ai_response handles case-insensitive action keywords."""
+        from scripts.edit_pipeline import _parse_ai_response
+
+        ai_response = """
+[keep] 0: Lowercase
+[KEEP] 1: Uppercase
+[Keep] 2: Mixed case
+"""
+        result = _parse_ai_response(ai_response, sample_transcript_segments)
+
+        assert len(result) == 3
+        for seg in result:
+            assert seg.action == EditAction.KEEP
+
+
+class TestAnalyzeWithAi:
+    """Tests for _analyze_with_ai function."""
+
+    def test_analyze_with_ai_returns_empty_when_not_using_ai(
+        self, sample_transcript_segments: list[TranscriptSegment]
+    ) -> None:
+        """_analyze_with_ai returns empty list when use_ai=False."""
+        from scripts.edit_pipeline import _analyze_with_ai
+
+        result = _analyze_with_ai(
+            transcript="[0] 0-5: Hello",
+            segments=sample_transcript_segments,
+            use_ai=False,
+        )
+
+        assert result == []
+
+    def test_analyze_with_ai_calls_llm(
+        self, sample_transcript_segments: list[TranscriptSegment]
+    ) -> None:
+        """_analyze_with_ai calls LLM and parses response when use_ai=True."""
+        from scripts.edit_pipeline import _analyze_with_ai
+
+        mock_response = "[KEEP] 0-2: All content"
+
+        with patch("scripts.edit_pipeline.load_agent_prompt") as mock_load:
+            with patch("scripts.edit_pipeline.analyze_transcript") as mock_analyze:
+                mock_load.return_value = "Test prompt"
+                mock_analyze.return_value = mock_response
+
+                result = _analyze_with_ai(
+                    transcript="[0] 0-5: Hello",
+                    segments=sample_transcript_segments,
+                    use_ai=True,
+                )
+
+        mock_load.assert_called_once_with("video-editor")
+        mock_analyze.assert_called_once()
+        assert len(result) == 1
+        assert result[0].transcript_indices == [0, 1, 2]
+
+    def test_analyze_with_ai_propagates_llm_error(
+        self, sample_transcript_segments: list[TranscriptSegment]
+    ) -> None:
+        """_analyze_with_ai propagates LLMClientError."""
+        from scripts.edit_pipeline import _analyze_with_ai
+        from scripts.llm_client import LLMClientError
+
+        with patch("scripts.edit_pipeline.load_agent_prompt") as mock_load:
+            mock_load.side_effect = LLMClientError("API key not set")
+
+            with pytest.raises(LLMClientError):
+                _analyze_with_ai(
+                    transcript="[0] 0-5: Hello",
+                    segments=sample_transcript_segments,
+                    use_ai=True,
+                )
+
+
+class TestCreateEdlFromAiSegments:
+    """Tests for _create_edl_from_ai_segments function."""
+
+    def test_create_edl_fills_gaps_with_keep(
+        self, sample_transcript_segments: list[TranscriptSegment]
+    ) -> None:
+        """_create_edl_from_ai_segments fills uncovered indices with KEEP."""
+        from scripts.edit_pipeline import _create_edl_from_ai_segments
+
+        # AI only covers segment 1 with REMOVE
+        ai_segments = [
+            EditSegment(
+                start=5.0,
+                end=10.0,
+                action=EditAction.REMOVE,
+                reason="Filler",
+                transcript_indices=[1],
+            )
+        ]
+
+        edl = _create_edl_from_ai_segments(
+            ai_segments=ai_segments,
+            all_segments=sample_transcript_segments,
+            video_path="/path/to/video.mp4",
+            duration=15.0,
+        )
+
+        # Should have 3 segments: KEEP[0], REMOVE[1], KEEP[2]
+        assert len(edl.segments) == 3
+        assert edl.segments[0].action == EditAction.KEEP
+        assert edl.segments[0].transcript_indices == [0]
+        assert edl.segments[1].action == EditAction.REMOVE
+        assert edl.segments[1].transcript_indices == [1]
+        assert edl.segments[2].action == EditAction.KEEP
+        assert edl.segments[2].transcript_indices == [2]
+
+    def test_create_edl_sorts_by_start_time(
+        self, sample_transcript_segments: list[TranscriptSegment]
+    ) -> None:
+        """_create_edl_from_ai_segments sorts segments by start time."""
+        from scripts.edit_pipeline import _create_edl_from_ai_segments
+
+        # AI segments in reverse order
+        ai_segments = [
+            EditSegment(
+                start=10.0,
+                end=15.0,
+                action=EditAction.KEEP,
+                reason=None,
+                transcript_indices=[2],
+            ),
+            EditSegment(
+                start=0.0,
+                end=5.0,
+                action=EditAction.REMOVE,
+                reason="Filler",
+                transcript_indices=[0],
+            ),
+        ]
+
+        edl = _create_edl_from_ai_segments(
+            ai_segments=ai_segments,
+            all_segments=sample_transcript_segments,
+            video_path="/path/to/video.mp4",
+            duration=15.0,
+        )
+
+        # Should be sorted by start time
+        assert edl.segments[0].start == 0.0
+        assert edl.segments[1].start == 5.0  # Gap filled
+        assert edl.segments[2].start == 10.0
+
+    def test_create_edl_merges_consecutive_gaps(
+        self, sample_transcript_segments: list[TranscriptSegment]
+    ) -> None:
+        """_create_edl_from_ai_segments handles consecutive gap indices."""
+        from scripts.edit_pipeline import _create_edl_from_ai_segments
+
+        # No AI segments - all gaps
+        ai_segments: list[EditSegment] = []
+
+        edl = _create_edl_from_ai_segments(
+            ai_segments=ai_segments,
+            all_segments=sample_transcript_segments,
+            video_path="/path/to/video.mp4",
+            duration=15.0,
+        )
+
+        # Should have one KEEP segment covering all
+        assert len(edl.segments) == 1
+        assert edl.segments[0].action == EditAction.KEEP
+        assert edl.segments[0].transcript_indices == [0, 1, 2]
+
+
+class TestEditVideoWithAi:
+    """Tests for edit_video function with use_ai parameter."""
+
+    def test_edit_video_with_ai_false_creates_all_keep(self, tmp_path: Path) -> None:
+        """edit_video with use_ai=False creates all-KEEP EDL (existing behavior)."""
+        from scripts.edit_pipeline import edit_video
+
+        video_path = tmp_path / "video.mp4"
+        video_path.touch()
+
+        srt_content = """1
+00:00:00,000 --> 00:00:05,000
+Hello
+
+2
+00:00:05,000 --> 00:00:10,000
+World"""
+        srt_path = tmp_path / "transcript.srt"
+        srt_path.write_text(srt_content)
+
+        with patch("scripts.edit_pipeline.get_video_duration", return_value=10.0):
+            result = edit_video(
+                str(video_path),
+                transcript_path=str(srt_path),
+                use_ai=False,
+            )
+
+        assert result["ai_used"] is False
+
+        # Load EDL and verify all KEEP
+        with open(result["edl_path"]) as f:
+            edl_data = json.load(f)
+
+        for seg in edl_data["segments"]:
+            assert seg["action"] == "keep"
+
+    def test_edit_video_with_ai_true_calls_llm(self, tmp_path: Path) -> None:
+        """edit_video with use_ai=True uses AI analysis."""
+        from scripts.edit_pipeline import edit_video
+
+        video_path = tmp_path / "video.mp4"
+        video_path.touch()
+
+        srt_content = """1
+00:00:00,000 --> 00:00:05,000
+Hello
+
+2
+00:00:05,000 --> 00:00:10,000
+Um let me try again"""
+        srt_path = tmp_path / "transcript.srt"
+        srt_path.write_text(srt_content)
+
+        mock_ai_response = """
+[KEEP] 0: Intro
+[REMOVE] 1: Retake
+"""
+
+        with patch("scripts.edit_pipeline.get_video_duration", return_value=10.0):
+            with patch("scripts.edit_pipeline.load_agent_prompt", return_value="Test"):
+                with patch("scripts.edit_pipeline.analyze_transcript", return_value=mock_ai_response):
+                    result = edit_video(
+                        str(video_path),
+                        transcript_path=str(srt_path),
+                        use_ai=True,
+                    )
+
+        assert result["ai_used"] is True
+
+        # Load EDL and verify AI decisions
+        with open(result["edl_path"]) as f:
+            edl_data = json.load(f)
+
+        assert len(edl_data["segments"]) == 2
+        assert edl_data["segments"][0]["action"] == "keep"
+        assert edl_data["segments"][1]["action"] == "remove"
+
+    def test_edit_video_falls_back_on_parse_failure(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture
+    ) -> None:
+        """edit_video falls back to all-KEEP when AI response parsing fails."""
+        from scripts.edit_pipeline import edit_video
+
+        video_path = tmp_path / "video.mp4"
+        video_path.touch()
+
+        srt_content = """1
+00:00:00,000 --> 00:00:05,000
+Hello"""
+        srt_path = tmp_path / "transcript.srt"
+        srt_path.write_text(srt_content)
+
+        # AI returns unparseable response
+        mock_ai_response = "I don't understand the request"
+
+        with patch("scripts.edit_pipeline.get_video_duration", return_value=5.0):
+            with patch("scripts.edit_pipeline.load_agent_prompt", return_value="Test"):
+                with patch("scripts.edit_pipeline.analyze_transcript", return_value=mock_ai_response):
+                    result = edit_video(
+                        str(video_path),
+                        transcript_path=str(srt_path),
+                        use_ai=True,
+                    )
+
+        # Should fall back to all-KEEP
+        with open(result["edl_path"]) as f:
+            edl_data = json.load(f)
+
+        assert edl_data["segments"][0]["action"] == "keep"
+
+        # Should warn about fallback
+        captured = capsys.readouterr()
+        assert "Warning" in captured.err
+        assert "Falling back" in captured.err
+
+    def test_edit_video_warns_when_all_remove(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture
+    ) -> None:
+        """edit_video warns when AI suggests removing all segments."""
+        from scripts.edit_pipeline import edit_video
+
+        video_path = tmp_path / "video.mp4"
+        video_path.touch()
+
+        srt_content = """1
+00:00:00,000 --> 00:00:05,000
+Hello"""
+        srt_path = tmp_path / "transcript.srt"
+        srt_path.write_text(srt_content)
+
+        # AI suggests removing everything
+        mock_ai_response = "[REMOVE] 0: Bad take"
+
+        with patch("scripts.edit_pipeline.get_video_duration", return_value=5.0):
+            with patch("scripts.edit_pipeline.load_agent_prompt", return_value="Test"):
+                with patch("scripts.edit_pipeline.analyze_transcript", return_value=mock_ai_response):
+                    edit_video(
+                        str(video_path),
+                        transcript_path=str(srt_path),
+                        use_ai=True,
+                    )
+
+        captured = capsys.readouterr()
+        assert "Warning" in captured.err
+        assert "removing all segments" in captured.err
+
+
+class TestApplyEdlToVideoWithSrt:
+    """Tests for apply_edl_to_video with SRT file support."""
+
+    def test_apply_edl_with_srt_generates_adjusted_srt(
+        self, tmp_path: Path, sample_edl: EditDecisionList
+    ) -> None:
+        """apply_edl_to_video with srt_path generates adjusted SRT file."""
+        from scripts.edit_decision import edl_to_json
+        from scripts.edit_pipeline import apply_edl_to_video
+
+        video_path = tmp_path / "video.mp4"
+        video_path.touch()
+
+        edl_path = tmp_path / "edl.json"
+        edl_path.write_text(edl_to_json(sample_edl))
+
+        srt_content = """1
+00:00:00,000 --> 00:00:05,000
+Hello"""
+        srt_path = tmp_path / "input.srt"
+        srt_path.write_text(srt_content)
+
+        with patch("scripts.edit_pipeline.cut_video") as mock_cut:
+            with patch("scripts.edit_pipeline.adjust_srt_for_edl") as mock_adjust_srt:
+                mock_cut.return_value = str(tmp_path / "output.mp4")
+                mock_adjust_srt.return_value = str(tmp_path / "output.srt")
+
+                result = apply_edl_to_video(
+                    str(video_path), str(edl_path), srt_path=str(srt_path)
+                )
+
+        # Should have called both cut_video and adjust_srt_for_edl
+        mock_cut.assert_called_once()
+        mock_adjust_srt.assert_called_once()
+
+        # Result should be a dict with both paths
+        assert isinstance(result, dict)
+        assert "video_path" in result
+        assert "srt_path" in result
+        assert result["video_path"] == str(tmp_path / "output.mp4")
+        assert result["srt_path"] == str(tmp_path / "output.srt")
+
+    def test_apply_edl_without_srt_maintains_backward_compatibility(
+        self, tmp_path: Path, sample_edl: EditDecisionList
+    ) -> None:
+        """apply_edl_to_video without srt_path returns string for backward compatibility."""
+        from scripts.edit_decision import edl_to_json
+        from scripts.edit_pipeline import apply_edl_to_video
+
+        video_path = tmp_path / "video.mp4"
+        video_path.touch()
+
+        edl_path = tmp_path / "edl.json"
+        edl_path.write_text(edl_to_json(sample_edl))
+
+        with patch("scripts.edit_pipeline.cut_video") as mock_cut:
+            mock_cut.return_value = str(tmp_path / "output.mp4")
+
+            result = apply_edl_to_video(str(video_path), str(edl_path))
+
+        # Should return string for backward compatibility
+        assert isinstance(result, str)
+        assert result == str(tmp_path / "output.mp4")
+
+    def test_apply_edl_with_srt_generates_correct_output_path(
+        self, tmp_path: Path, sample_edl: EditDecisionList
+    ) -> None:
+        """apply_edl_to_video generates SRT output path based on video output path."""
+        from scripts.edit_decision import edl_to_json
+        from scripts.edit_pipeline import apply_edl_to_video
+
+        video_path = tmp_path / "video.mp4"
+        video_path.touch()
+
+        edl_path = tmp_path / "edl.json"
+        edl_path.write_text(edl_to_json(sample_edl))
+
+        srt_content = """1
+00:00:00,000 --> 00:00:05,000
+Hello"""
+        srt_path = tmp_path / "input.srt"
+        srt_path.write_text(srt_content)
+
+        output_video_path = str(tmp_path / "custom_output.mp4")
+
+        with patch("scripts.edit_pipeline.cut_video") as mock_cut:
+            with patch("scripts.edit_pipeline.adjust_srt_for_edl") as mock_adjust_srt:
+                mock_cut.return_value = output_video_path
+                # Capture the output_path argument passed to adjust_srt_for_edl
+                def capture_call(srt_input, edl, output_path):
+                    return output_path
+                mock_adjust_srt.side_effect = capture_call
+
+                result = apply_edl_to_video(
+                    str(video_path), str(edl_path),
+                    output_path=output_video_path,
+                    srt_path=str(srt_path)
+                )
+
+        # The SRT output path should match the video output path but with .srt extension
+        expected_srt_path = str(tmp_path / "custom_output.srt")
+        assert result["srt_path"] == expected_srt_path
+
+    def test_apply_edl_with_srt_file_not_found(
+        self, tmp_path: Path, sample_edl: EditDecisionList
+    ) -> None:
+        """apply_edl_to_video raises FileNotFoundError for missing SRT file."""
+        from scripts.edit_decision import edl_to_json
+        from scripts.edit_pipeline import apply_edl_to_video
+
+        video_path = tmp_path / "video.mp4"
+        video_path.touch()
+
+        edl_path = tmp_path / "edl.json"
+        edl_path.write_text(edl_to_json(sample_edl))
+
+        with patch("scripts.edit_pipeline.cut_video") as mock_cut:
+            mock_cut.return_value = str(tmp_path / "output.mp4")
+
+            with pytest.raises(FileNotFoundError):
+                apply_edl_to_video(
+                    str(video_path), str(edl_path), srt_path="/nonexistent/file.srt"
+                )

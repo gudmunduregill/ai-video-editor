@@ -811,6 +811,7 @@ class TestCliEditSubcommandExecution:
             transcript_path=None,
             edl_path=None,
             auto_apply=False,
+            use_ai=False,
         )
         assert exit_code == 0
 
@@ -883,6 +884,49 @@ class TestCliEditSubcommandExecution:
         call_kwargs = mock_edit.call_args
         assert call_kwargs[1]["auto_apply"] is True
 
+    def test_main_edit_passes_ai_flag(
+        self, tmp_path: Path
+    ) -> None:
+        """main() edit subcommand passes --ai flag to edit_video."""
+        from scripts.cli import main
+
+        video_path = tmp_path / "test.mp4"
+        video_path.write_bytes(b"dummy")
+
+        with patch("scripts.cli.edit_video") as mock_edit:
+            mock_edit.return_value = {
+                "edl_path": str(tmp_path / "test.edl.json"),
+                "transcript_for_review": "transcript text",
+                "video_duration": 120.0,
+                "segment_count": 10,
+                "ai_used": True,
+            }
+
+            main(["edit", str(video_path), "--ai"])
+
+        call_kwargs = mock_edit.call_args
+        assert call_kwargs[1]["use_ai"] is True
+
+    def test_main_edit_handles_llm_client_error(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """main() edit subcommand handles LLMClientError gracefully."""
+        from scripts.cli import main
+        from scripts.llm_client import LLMClientError
+
+        video_path = tmp_path / "test.mp4"
+        video_path.write_bytes(b"dummy")
+
+        with patch("scripts.cli.edit_video") as mock_edit:
+            mock_edit.side_effect = LLMClientError("ANTHROPIC_API_KEY not set")
+
+            exit_code = main(["edit", str(video_path), "--ai"])
+
+        assert exit_code == 1
+        captured = capsys.readouterr()
+        assert "Error:" in captured.err
+        assert "AI analysis failed" in captured.err
+
     def test_main_edit_prints_edl_path_on_success(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -951,6 +995,7 @@ class TestCliApplyEdlSubcommandExecution:
             str(video_path),
             str(edl_path),
             None,
+            srt_path=None,
         )
         assert exit_code == 0
 
@@ -1070,5 +1115,101 @@ class TestCliApplyEdlSubcommandExecution:
 
             main(["apply-edl", str(video_path), str(edl_path)])
 
+        captured = capsys.readouterr()
+        assert "Error:" in captured.err
+
+
+class TestCliApplyEdlSrtFlag:
+    """Tests for CLI apply-edl --srt flag."""
+
+    def test_parse_args_apply_edl_accepts_srt_flag(self) -> None:
+        """CLI apply-edl subcommand accepts --srt flag for input SRT file."""
+        from scripts.cli import parse_args
+
+        args = parse_args([
+            "apply-edl", "video.mp4", "video.edl.json",
+            "--srt", "video.srt",
+        ])
+
+        assert args.command == "apply-edl"
+        assert args.srt == "video.srt"
+
+    def test_parse_args_apply_edl_srt_default_is_none(self) -> None:
+        """CLI apply-edl subcommand defaults --srt to None."""
+        from scripts.cli import parse_args
+
+        args = parse_args(["apply-edl", "video.mp4", "video.edl.json"])
+
+        assert args.srt is None
+
+    def test_main_apply_edl_passes_srt_path(
+        self, tmp_path: Path
+    ) -> None:
+        """main() apply-edl subcommand passes srt_path to apply_edl_to_video."""
+        from scripts.cli import main
+
+        video_path = tmp_path / "test.mp4"
+        video_path.write_bytes(b"dummy")
+        edl_path = tmp_path / "test.edl.json"
+        edl_path.write_text('{}')
+        srt_path = tmp_path / "test.srt"
+        srt_path.write_text("1\n00:00:00,000 --> 00:00:05,000\nHello")
+
+        with patch("scripts.cli.apply_edl_to_video") as mock_apply:
+            mock_apply.return_value = {
+                "video_path": str(tmp_path / "test_edited.mp4"),
+                "srt_path": str(tmp_path / "test_edited.srt"),
+            }
+
+            main(["apply-edl", str(video_path), str(edl_path), "--srt", str(srt_path)])
+
+        call_args = mock_apply.call_args
+        assert call_args[1]["srt_path"] == str(srt_path)
+
+    def test_main_apply_edl_prints_srt_output_path_on_success(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """main() apply-edl subcommand prints SRT output path when --srt is provided."""
+        from scripts.cli import main
+
+        video_path = tmp_path / "test.mp4"
+        video_path.write_bytes(b"dummy")
+        edl_path = tmp_path / "test.edl.json"
+        edl_path.write_text('{}')
+        srt_path = tmp_path / "test.srt"
+        srt_path.write_text("1\n00:00:00,000 --> 00:00:05,000\nHello")
+        output_srt_path = str(tmp_path / "test_edited.srt")
+
+        with patch("scripts.cli.apply_edl_to_video") as mock_apply:
+            mock_apply.return_value = {
+                "video_path": str(tmp_path / "test_edited.mp4"),
+                "srt_path": output_srt_path,
+            }
+
+            main(["apply-edl", str(video_path), str(edl_path), "--srt", str(srt_path)])
+
+        captured = capsys.readouterr()
+        assert output_srt_path in captured.out
+
+    def test_main_apply_edl_returns_exit_code_1_on_srt_not_found(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """main() apply-edl subcommand returns exit code 1 when SRT file not found."""
+        from scripts.cli import main
+
+        video_path = tmp_path / "test.mp4"
+        video_path.write_bytes(b"dummy")
+        edl_path = tmp_path / "test.edl.json"
+        edl_path.write_text('{}')
+
+        with patch("scripts.cli.apply_edl_to_video") as mock_apply:
+            mock_apply.side_effect = FileNotFoundError("SRT file not found")
+
+            exit_code = main([
+                "apply-edl", str(video_path), str(edl_path),
+                "--srt", "/nonexistent/file.srt"
+            ])
+
+        assert exit_code == 1
         captured = capsys.readouterr()
         assert "Error:" in captured.err

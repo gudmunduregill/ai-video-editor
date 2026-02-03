@@ -819,3 +819,322 @@ class TestCutVideoIntegration:
                 assert len(segment_files) == 0, f"Segment files not cleaned up: {segment_files}"
 
         assert os.path.exists(result)
+
+
+class TestAdjustSrtForEdl:
+    """Tests for adjust_srt_for_edl function."""
+
+    @pytest.fixture
+    def sample_srt_content(self) -> str:
+        """Sample SRT content with three subtitles."""
+        return """1
+00:00:00,000 --> 00:00:05,000
+Hello
+
+2
+00:00:10,000 --> 00:00:15,000
+This is filler
+
+3
+00:00:20,000 --> 00:00:25,000
+Important content"""
+
+    @pytest.fixture
+    def single_keep_edl_for_srt(self) -> EditDecisionList:
+        """EDL with single KEEP segment from 0-5s."""
+        return EditDecisionList(
+            source_video="/path/to/video.mp4",
+            segments=[
+                EditSegment(
+                    start=0.0,
+                    end=5.0,
+                    action=EditAction.KEEP,
+                    reason="Keep intro",
+                    transcript_indices=[0],
+                ),
+            ],
+            total_duration=30.0,
+        )
+
+    @pytest.fixture
+    def multi_keep_edl_for_srt(self) -> EditDecisionList:
+        """EDL with two KEEP segments: 0-5s and 20-25s (removing 5-20s)."""
+        return EditDecisionList(
+            source_video="/path/to/video.mp4",
+            segments=[
+                EditSegment(
+                    start=0.0,
+                    end=5.0,
+                    action=EditAction.KEEP,
+                    reason="Keep intro",
+                    transcript_indices=[0],
+                ),
+                EditSegment(
+                    start=5.0,
+                    end=20.0,
+                    action=EditAction.REMOVE,
+                    reason="Remove filler",
+                    transcript_indices=[1],
+                ),
+                EditSegment(
+                    start=20.0,
+                    end=25.0,
+                    action=EditAction.KEEP,
+                    reason="Keep important content",
+                    transcript_indices=[2],
+                ),
+            ],
+            total_duration=30.0,
+        )
+
+    def test_adjust_srt_single_keep_segment(
+        self, tmp_path: Path, sample_srt_content: str, single_keep_edl_for_srt: EditDecisionList
+    ) -> None:
+        """adjust_srt_for_edl keeps only subtitles within single KEEP segment."""
+        from scripts.video_cutter import adjust_srt_for_edl
+
+        srt_path = tmp_path / "input.srt"
+        srt_path.write_text(sample_srt_content)
+        output_path = tmp_path / "output.srt"
+
+        result = adjust_srt_for_edl(str(srt_path), single_keep_edl_for_srt, str(output_path))
+
+        assert result == str(output_path)
+        assert os.path.exists(result)
+
+        output_content = output_path.read_text()
+        # Should only have "Hello" subtitle (0-5s)
+        assert "Hello" in output_content
+        assert "This is filler" not in output_content
+        assert "Important content" not in output_content
+
+    def test_adjust_srt_multiple_keep_segments_with_cumulative_offset(
+        self, tmp_path: Path, sample_srt_content: str, multi_keep_edl_for_srt: EditDecisionList
+    ) -> None:
+        """adjust_srt_for_edl correctly adjusts timestamps with cumulative offset."""
+        from scripts.video_cutter import adjust_srt_for_edl
+
+        srt_path = tmp_path / "input.srt"
+        srt_path.write_text(sample_srt_content)
+        output_path = tmp_path / "output.srt"
+
+        result = adjust_srt_for_edl(str(srt_path), multi_keep_edl_for_srt, str(output_path))
+
+        output_content = output_path.read_text()
+        # Should have "Hello" (0-5s) and "Important content" (was 20-25s, now 5-10s)
+        assert "Hello" in output_content
+        assert "Important content" in output_content
+        assert "This is filler" not in output_content
+
+        # Check timestamp adjustment: third subtitle should now start at 5s instead of 20s
+        # 15 seconds were removed (5-20s), so 20s becomes 5s
+        assert "00:00:05,000" in output_content
+        assert "00:00:10,000" in output_content  # End time for "Important content"
+
+    def test_adjust_srt_subtitle_in_remove_segment_discarded(
+        self, tmp_path: Path, sample_srt_content: str, multi_keep_edl_for_srt: EditDecisionList
+    ) -> None:
+        """adjust_srt_for_edl discards subtitles entirely within REMOVE segments."""
+        from scripts.video_cutter import adjust_srt_for_edl
+
+        srt_path = tmp_path / "input.srt"
+        srt_path.write_text(sample_srt_content)
+        output_path = tmp_path / "output.srt"
+
+        adjust_srt_for_edl(str(srt_path), multi_keep_edl_for_srt, str(output_path))
+
+        output_content = output_path.read_text()
+        # "This is filler" at 10-15s is within REMOVE segment (5-20s)
+        assert "This is filler" not in output_content
+
+    def test_adjust_srt_subtitle_spanning_cut_boundary_trimmed(
+        self, tmp_path: Path
+    ) -> None:
+        """adjust_srt_for_edl trims subtitles that span cut boundaries."""
+        from scripts.video_cutter import adjust_srt_for_edl
+
+        # Subtitle that spans from 4s to 7s (crosses boundary at 5s)
+        srt_content = """1
+00:00:04,000 --> 00:00:07,000
+Spanning subtitle"""
+        srt_path = tmp_path / "input.srt"
+        srt_path.write_text(srt_content)
+
+        # KEEP only 0-5s
+        edl = EditDecisionList(
+            source_video="/path/to/video.mp4",
+            segments=[
+                EditSegment(
+                    start=0.0,
+                    end=5.0,
+                    action=EditAction.KEEP,
+                    reason="Keep first part",
+                    transcript_indices=[0],
+                ),
+            ],
+            total_duration=10.0,
+        )
+
+        output_path = tmp_path / "output.srt"
+        adjust_srt_for_edl(str(srt_path), edl, str(output_path))
+
+        output_content = output_path.read_text()
+        # Subtitle should be included but trimmed to end at 5s
+        assert "Spanning subtitle" in output_content
+        assert "00:00:04,000" in output_content
+        assert "00:00:05,000" in output_content  # Trimmed end time
+
+    def test_adjust_srt_subtitle_starting_before_keep_segment_trimmed(
+        self, tmp_path: Path
+    ) -> None:
+        """adjust_srt_for_edl trims subtitles starting before KEEP segment."""
+        from scripts.video_cutter import adjust_srt_for_edl
+
+        # Subtitle that starts before KEEP segment
+        srt_content = """1
+00:00:03,000 --> 00:00:07,000
+Spanning subtitle"""
+        srt_path = tmp_path / "input.srt"
+        srt_path.write_text(srt_content)
+
+        # KEEP only 5-10s
+        edl = EditDecisionList(
+            source_video="/path/to/video.mp4",
+            segments=[
+                EditSegment(
+                    start=5.0,
+                    end=10.0,
+                    action=EditAction.KEEP,
+                    reason="Keep middle part",
+                    transcript_indices=[0],
+                ),
+            ],
+            total_duration=15.0,
+        )
+
+        output_path = tmp_path / "output.srt"
+        adjust_srt_for_edl(str(srt_path), edl, str(output_path))
+
+        output_content = output_path.read_text()
+        # Subtitle should be included but trimmed to start at 5s
+        # After adjustment (0s cumulative offset before this segment), it starts at 0s
+        assert "Spanning subtitle" in output_content
+        assert "00:00:00,000" in output_content  # Trimmed and adjusted start time
+        assert "00:00:02,000" in output_content  # Adjusted end time (7s - 5s = 2s)
+
+    def test_adjust_srt_empty_file(self, tmp_path: Path) -> None:
+        """adjust_srt_for_edl handles empty SRT file gracefully."""
+        from scripts.video_cutter import adjust_srt_for_edl
+
+        srt_path = tmp_path / "empty.srt"
+        srt_path.write_text("")
+        output_path = tmp_path / "output.srt"
+
+        edl = EditDecisionList(
+            source_video="/path/to/video.mp4",
+            segments=[
+                EditSegment(
+                    start=0.0,
+                    end=5.0,
+                    action=EditAction.KEEP,
+                    reason="Keep intro",
+                    transcript_indices=[0],
+                ),
+            ],
+            total_duration=10.0,
+        )
+
+        result = adjust_srt_for_edl(str(srt_path), edl, str(output_path))
+
+        assert result == str(output_path)
+        # Output file should be created but empty or with no subtitles
+        output_content = output_path.read_text()
+        # Empty SRT has no subtitles
+        assert output_content.strip() == ""
+
+    def test_adjust_srt_file_not_found_raises(self, tmp_path: Path) -> None:
+        """adjust_srt_for_edl raises FileNotFoundError for missing SRT file."""
+        from scripts.video_cutter import adjust_srt_for_edl
+
+        edl = EditDecisionList(
+            source_video="/path/to/video.mp4",
+            segments=[
+                EditSegment(
+                    start=0.0,
+                    end=5.0,
+                    action=EditAction.KEEP,
+                    reason="Keep intro",
+                    transcript_indices=[0],
+                ),
+            ],
+            total_duration=10.0,
+        )
+
+        output_path = tmp_path / "output.srt"
+
+        with pytest.raises(FileNotFoundError):
+            adjust_srt_for_edl("/nonexistent/file.srt", edl, str(output_path))
+
+    def test_adjust_srt_preserves_subtitle_numbering(
+        self, tmp_path: Path, sample_srt_content: str, multi_keep_edl_for_srt: EditDecisionList
+    ) -> None:
+        """adjust_srt_for_edl renumbers subtitles correctly."""
+        from scripts.video_cutter import adjust_srt_for_edl
+
+        srt_path = tmp_path / "input.srt"
+        srt_path.write_text(sample_srt_content)
+        output_path = tmp_path / "output.srt"
+
+        adjust_srt_for_edl(str(srt_path), multi_keep_edl_for_srt, str(output_path))
+
+        output_content = output_path.read_text()
+        lines = output_content.strip().split("\n")
+        # First subtitle should be numbered 1
+        assert lines[0] == "1"
+        # Second subtitle should be numbered 2
+        # Find where second subtitle starts (after blank line)
+        blank_idx = None
+        for i, line in enumerate(lines):
+            if line == "" and i > 0:
+                blank_idx = i
+                break
+        if blank_idx is not None:
+            assert lines[blank_idx + 1] == "2"
+
+    def test_adjust_srt_all_subtitles_removed(self, tmp_path: Path) -> None:
+        """adjust_srt_for_edl handles case where all subtitles are removed."""
+        from scripts.video_cutter import adjust_srt_for_edl
+
+        # Subtitles at 10-15s and 20-25s
+        srt_content = """1
+00:00:10,000 --> 00:00:15,000
+First subtitle
+
+2
+00:00:20,000 --> 00:00:25,000
+Second subtitle"""
+        srt_path = tmp_path / "input.srt"
+        srt_path.write_text(srt_content)
+
+        # KEEP only 0-5s (no subtitles in this range)
+        edl = EditDecisionList(
+            source_video="/path/to/video.mp4",
+            segments=[
+                EditSegment(
+                    start=0.0,
+                    end=5.0,
+                    action=EditAction.KEEP,
+                    reason="Keep intro",
+                    transcript_indices=[0],
+                ),
+            ],
+            total_duration=30.0,
+        )
+
+        output_path = tmp_path / "output.srt"
+        result = adjust_srt_for_edl(str(srt_path), edl, str(output_path))
+
+        assert result == str(output_path)
+        output_content = output_path.read_text()
+        # All subtitles removed
+        assert output_content.strip() == ""
