@@ -1,0 +1,199 @@
+{
+  "source_video": "input/test_video.mp4",
+  "total_duration": 222.16,
+  "segments": [
+    {
+      "start": 0.0,
+      "end": 6.88,
+      "action": "keep",
+      "reason": null,
+      "transcript_indices": [
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "start": 6.88,
+      "end": 10.56,
+      "action": "remove",
+      "reason": "\"Jaut!\" repetition - Filler",
+      "transcript_indices": [
+        3,
+        4
+      ]
+    },
+    {
+      "start": 10.56,
+      "end": 27.84,
+      "action": "remove",
+      "reason": "Fragmented, largely unintelligible speech",
+      "transcript_indices": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ]
+    },
+    {
+      "start": 27.84,
+      "end": 38.84,
+      "action": "remove",
+      "reason": "Long corrupted segment with repetition",
+      "transcript_indices": [
+        14
+      ]
+    },
+    {
+      "start": 38.84,
+      "end": 59.84,
+      "action": "remove",
+      "reason": "Massive repetition of \"saa olla jo ylint\u00e4\" - Clear retake/corruption",
+      "transcript_indices": [
+        15,
+        16
+      ]
+    },
+    {
+      "start": 59.84,
+      "end": 61.84,
+      "action": "remove",
+      "reason": "Fragment - \"M\u00e4 edelleen\"",
+      "transcript_indices": [
+        17
+      ]
+    },
+    {
+      "start": 64.34,
+      "end": 107.04,
+      "action": "remove",
+      "reason": "Continuous repetition of \"Ei vaa taas ajattemme\" (16+ times) - Clear audio/transcription error",
+      "transcript_indices": [
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34
+      ]
+    },
+    {
+      "start": 107.04,
+      "end": 134.04,
+      "action": "keep",
+      "reason": null,
+      "transcript_indices": [
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43
+      ]
+    },
+    {
+      "start": 134.04,
+      "end": 142.38,
+      "action": "keep",
+      "reason": null,
+      "transcript_indices": [
+        44,
+        45,
+        46,
+        47,
+        48
+      ]
+    },
+    {
+      "start": 142.38,
+      "end": 152.78,
+      "action": "remove",
+      "reason": "Mix of fragments and single words - mostly unintelligible",
+      "transcript_indices": [
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57
+      ]
+    },
+    {
+      "start": 152.78,
+      "end": 154.18,
+      "action": "keep",
+      "reason": null,
+      "transcript_indices": [
+        58
+      ]
+    },
+    {
+      "start": 164.04,
+      "end": 194.04,
+      "action": "keep",
+      "reason": null,
+      "transcript_indices": [
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70
+      ]
+    },
+    {
+      "start": 197.04,
+      "end": 220.04,
+      "action": "keep",
+      "reason": null,
+      "transcript_indices": [
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79
+      ]
+    },
+    {
+      "start": 220.04,
+      "end": 222.04,
+      "action": "remove",
+      "reason": "Single \"Ja\" - Filler",
+      "transcript_indices": [
+        80
+      ]
+    }
+  ]
+}

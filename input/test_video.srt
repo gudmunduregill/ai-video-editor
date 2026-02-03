@@ -1,251 +1,323 @@
 1
-00:00:00,000 --> 00:00:02,000
-[óljóst]
+00:00:00,000 --> 00:00:02,480
+Kauvitai visu.
 
 2
-00:00:02,000 --> 00:00:04,000
-Já
+00:00:02,520 --> 00:00:03,520
+Jaut.
 
 3
-00:00:04,000 --> 00:00:05,000
-[óljóst]
+00:00:03,520 --> 00:00:06,880
+Jaut, ja Cinnamon, ääkiskuis.
 
 4
-00:00:05,000 --> 00:00:06,000
-Já ég var að hugsa það sko
+00:00:06,880 --> 00:00:09,120
+Jaut, ja ytleviä kuulet aileva.
 
 5
-00:00:06,000 --> 00:00:08,000
-[óljóst]
+00:00:09,120 --> 00:00:10,560
+Jaut!
 
 6
-00:00:08,000 --> 00:00:10,000
-[óljóst]
+00:00:10,560 --> 00:00:12,160
+Jaa sä yökkä.
 
 7
-00:00:10,000 --> 00:00:12,000
-[óljóst]
+00:00:12,160 --> 00:00:13,600
+Jaa sä ylemykekreatti.
 
 8
-00:00:12,000 --> 00:00:14,000
-[óljóst]
+00:00:13,600 --> 00:00:14,660
+Jaut!
 
 9
-00:00:14,000 --> 00:00:16,000
-Já ég ætla að
+00:00:14,660 --> 00:00:16,560
+Jaa sä ylementä, että saa tehdä, että kodet.
 
 10
-00:00:16,000 --> 00:00:18,000
-[óljóst]
+00:00:16,560 --> 00:00:18,960
+Okei.
 
 11
-00:00:18,000 --> 00:00:20,000
-Ok
+00:00:18,960 --> 00:00:20,960
+Ja häntää.
 
 12
-00:00:22,000 --> 00:00:24,000
-[óljóst]
+00:00:20,960 --> 00:00:23,040
+Jaa sä yleensä lisää ens on.
 
 13
-00:00:30,000 --> 00:00:32,000
-Eða
+00:00:23,040 --> 00:00:25,040
+Jaael ämme saa näitä?
 
 14
-00:00:32,000 --> 00:00:34,000
-Nei
+00:00:25,040 --> 00:00:27,840
+Jaa sä yleensä.
 
 15
-00:00:34,000 --> 00:00:36,000
-Í hringrásarhagkerfinu
+00:00:27,840 --> 00:00:38,840
+...i rinkkrassella käydä nu, saa olla jo aattelannurkank, semmo on ylintä.
 
 16
-00:00:36,000 --> 00:00:38,000
-Þá horfum við á allan úrgang
+00:00:38,840 --> 00:00:49,840
+Mediä en terhuksa, ja niitä slida strömma, saa olla jo ylintä, saa olla jo ylintä, saa olla jo ylintä, saa olla jo ylintä.
 
 17
-00:00:38,000 --> 00:00:40,000
-sem auðlind
+00:00:50,840 --> 00:00:59,840
+Mediä en terhuksa, ja niitä slida strömma, saa olla jo ylintä, saa olla jo ylintä, saa olla jo ylintä.
 
 18
-00:00:40,000 --> 00:00:42,000
-Með því að endurhugsa og nýta hliðastrauma
+00:00:59,840 --> 00:01:01,840
+Mä edelleen.
 
 19
-00:00:42,000 --> 00:00:44,000
-þá getum við skapað verðmæti
+00:01:04,340 --> 00:01:06,540
+Ei vaalta bara aufframme. Ei vaa takat aftur.
 
 20
-00:00:44,000 --> 00:00:46,000
-og á sama tíma dregið úr myndun úrgangs
+00:01:06,540 --> 00:01:08,540
+Ei vaa taas taas ajattemme.
 
 21
-00:00:46,000 --> 00:00:48,000
-[óljóst]
+00:01:08,540 --> 00:01:10,040
+Mä olen aufframme.
 
 22
-00:00:48,000 --> 00:00:50,000
-[óljóst]
+00:01:10,040 --> 00:01:12,040
+Ei vaa taas ajattemme.
 
 23
-00:00:52,000 --> 00:00:54,000
-Með því að endurhugsa og nýta hliðastrauma
+00:01:15,040 --> 00:01:16,040
+Ei vaa taas ajattemme.
 
 24
-00:00:54,000 --> 00:00:56,000
-þá getum við skapað verðmæti
+00:01:16,040 --> 00:01:18,040
+Ei vaa taas ajattemme.
 
 25
-00:00:56,000 --> 00:00:58,000
-og á sama tíma dregið úr kostnaði
+00:01:18,040 --> 00:01:20,040
+Ei vaa taas ajattemme.
 
 26
-00:00:58,000 --> 00:01:00,000
-dregið úr kostnaði
+00:01:28,040 --> 00:01:30,040
+Ei vaa taas ajattemme.
 
 27
-00:01:00,000 --> 00:01:02,000
-við úrgangsmyndun
+00:01:30,040 --> 00:01:32,040
+Ei vaa taas ajattemme.
 
 28
-00:01:04,000 --> 00:01:06,000
-Ef við haldum bara áfram
+00:01:32,040 --> 00:01:34,040
+Ei vaa taas ajattemme.
 
 29
-00:01:06,000 --> 00:01:08,000
-eða ef við tökum þetta aftur
+00:01:34,040 --> 00:01:36,040
+Ei vaa taas ajattemme.
 
 30
-00:01:08,000 --> 00:01:10,000
-þetta voru fyrst og fremst tvær setningar
+00:01:36,040 --> 00:01:38,040
+Ei vaa taas ajattemme.
 
 31
-00:01:10,000 --> 00:01:12,000
-Haldum bara áfram
+00:01:38,040 --> 00:01:40,040
+Ei vaa taas ajattemme.
 
 32
-00:01:14,000 --> 00:01:16,000
-Á ég að vera meira á stikkunum
+00:01:40,040 --> 00:01:42,040
+Ei vaa taas ajattemme.
 
 33
-00:01:16,000 --> 00:01:18,000
-Horfðu kannski
+00:01:42,040 --> 00:01:44,040
+Ei vaa taas ajattemme.
 
 34
-00:01:28,000 --> 00:01:30,000
-Ja
+00:01:44,040 --> 00:01:46,040
+Ei vaa taas ajattemme.
 
 35
-00:01:30,000 --> 00:01:32,000
-Með nýskapandi hugsun
+00:01:46,040 --> 00:01:47,040
+Ei vaa taas ajattemme.
 
 36
-00:01:32,000 --> 00:01:34,000
-þar sem að áhersla er
+00:01:47,040 --> 00:01:49,040
+Onko jotain, että niitä on?
 
 37
-00:01:34,000 --> 00:01:36,000
-að fullnýting hliðarafurða
+00:01:49,040 --> 00:01:54,040
+Mäin niistä kaa vandehyksen, että saa semmoio ilmääkään laitamme pitäisi koko litenä.
 
 38
-00:01:36,000 --> 00:01:38,000
-getum við hámarkað verðmæti
+00:01:54,040 --> 00:01:57,040
+K watcha on jääntä, mutta ei ole kauta saa jääntää.
 
 39
-00:01:38,000 --> 00:01:40,000
-sköpun fyrirtæki
+00:01:57,040 --> 00:02:00,040
+Mä oonkin yksin kautta.
 
 40
-00:01:50,000 --> 00:01:52,000
-Með nýskapandi hugsun
+00:02:00,040 --> 00:02:03,040
+Ollaan, että se on kautta kuten käy.
 
 41
-00:01:52,000 --> 00:01:54,000
-þar sem áhersla er á fullnýtingu hliðarafurða
+00:02:03,040 --> 00:02:06,040
+Sä oon jääntä, mutta se on jääntä.
 
 42
-00:01:54,000 --> 00:01:56,000
-getum við hámarkað verðmæti
+00:02:06,040 --> 00:02:10,040
+Sitten on kautta kuten kautta.
 
 43
-00:01:56,000 --> 00:01:58,000
-sköpun fyrirtæki
+00:02:10,040 --> 00:02:12,040
+Ja on jääntä.
 
 44
-00:02:00,000 --> 00:02:02,000
-Eitthvað komment?
+00:02:12,040 --> 00:02:14,040
+Kuten kautta kuten käy.
 
 45
-00:02:10,000 --> 00:02:12,000
-Já ég er mjög óviss
+00:02:14,040 --> 00:02:16,040
+Ja, ja täällä ehkä on aikaa.
 
 46
-00:02:12,000 --> 00:02:14,000
-[óljóst]
+00:02:16,040 --> 00:02:16,800
+Ja.
 
 47
-00:02:18,000 --> 00:02:20,000
-Á ég að taka
+00:02:16,820 --> 00:02:18,360
+Ja, täällä on aikaa.
 
 48
-00:02:20,000 --> 00:02:22,000
-[óljóst]
+00:02:18,360 --> 00:02:19,960
+Ja, täällä ei jätetä!
 
 49
-00:02:22,000 --> 00:02:24,000
-[óljóst]
+00:02:19,960 --> 00:02:22,380
+Tuostaa, että hei, vaan miksi ei suun, mutta ei enttä kere!
 
 50
-00:02:24,000 --> 00:02:26,000
-Á ég taka allt aftur í það
+00:02:22,380 --> 00:02:23,640
+Ja täällä sitten vai sitten.
 
 51
-00:02:30,000 --> 00:02:32,000
-Nei nei þetta er alls ekki endurinn
+00:02:23,640 --> 00:02:24,300
+Ne.
 
 52
-00:02:44,000 --> 00:02:46,000
-[óljóst]
+00:02:25,320 --> 00:02:26,860
+Ja, täällä ei täällä.
 
 53
-00:02:50,000 --> 00:02:56,000
-Í sjávarútvegi hafa til dæmis verið tekin mörg skref í átt að fullnýtingu hliðarafurða.
+00:02:26,860 --> 00:02:28,020
+Onko täällä!
 
 54
-00:02:59,000 --> 00:03:08,000
-Með nýsköpun eru hliðarafurðir úr fiskvinnslu nýttar og skapast þannig verðmæti með betri útkoma fyrir umhverfið.
+00:02:28,020 --> 00:02:29,020
+No ei!
 
 55
-00:03:11,000 --> 00:03:13,000
-Já þetta.
+00:02:29,020 --> 00:02:29,320
+Ne!
 
 56
-00:03:13,000 --> 00:03:20,000
-Finndu sóun og byrjaðu þar.
+00:02:29,320 --> 00:02:30,380
+Hei, täällä, sä meisten hyöntöön.
 
 57
-00:03:21,000 --> 00:03:24,000
-[óljóst]
+00:02:30,380 --> 00:02:31,280
+Ne.
 
 58
-00:03:25,000 --> 00:03:26,000
-[óljóst]
+00:02:31,280 --> 00:02:32,780
+No lukee kyllä se täällä.
 
 59
-00:03:28,000 --> 00:03:30,000
-Finndu sóun og byrjaðu þar.
+00:02:32,780 --> 00:02:34,180
+Okei, kenaspäin.
 
 60
-00:03:30,000 --> 00:03:31,000
-Já.
+00:02:44,040 --> 00:02:46,040
+Achka se alvautui, ja on.
 
 61
-00:03:33,000 --> 00:03:35,000
-[óljóst]
+00:02:46,040 --> 00:02:48,040
+Ja.
 
 62
-00:03:35,000 --> 00:03:36,000
-Já.
+00:02:48,040 --> 00:02:50,040
+Ja.
 
 63
-00:03:38,000 --> 00:03:40,000
-Finndu sóun og byrjaðu þar.
+00:02:50,040 --> 00:02:54,040
+I se alvautui, havaa tilta, missä välitekin mörksgrev,
+
+64
+00:02:54,040 --> 00:02:56,040
+ja achta fytliitikosledaravalla.
+
+65
+00:02:56,040 --> 00:02:58,040
+Ja.
+
+66
+00:02:58,040 --> 00:03:02,040
+Menniskopun, ero ledaravardir,
+
+67
+00:03:02,040 --> 00:03:04,040
+urfilsquinslö, nihtir,
+
+68
+00:03:04,040 --> 00:03:06,040
+oskaapastanne värdmaitein,
+
+69
+00:03:06,040 --> 00:03:08,040
+me elpää trutkomme fer ymmärrymköriff.
+
+70
+00:03:08,040 --> 00:03:12,040
+Ja aletaan.
+
+71
+00:03:12,040 --> 00:03:14,040
+Ja aletaan.
+
+72
+00:03:17,040 --> 00:03:20,040
+Fintusoon oppirjääsar.
+
+73
+00:03:22,040 --> 00:03:24,040
+Sitten se, se, se, se, se.
+
+74
+00:03:24,040 --> 00:03:26,040
+Kastuuksaa.
+
+75
+00:03:26,040 --> 00:03:30,040
+Fintusoon oppirjääsar, lokalen.
+
+76
+00:03:30,040 --> 00:03:32,040
+Ja.
+
+77
+00:03:32,040 --> 00:03:34,040
+Se, se, se, se, se.
+
+78
+00:03:34,040 --> 00:03:36,040
+Ja.
+
+79
+00:03:36,040 --> 00:03:38,040
+Ja.
+
+80
+00:03:38,040 --> 00:03:40,040
+Fintusoon oppirjääsar.
+
+81
+00:03:40,040 --> 00:03:42,040
+Ja.
