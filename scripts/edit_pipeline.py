@@ -14,7 +14,6 @@ import sys
 from pathlib import Path
 from typing import Generator, Optional
 
-from scripts.edit_analyzer import format_transcript_for_editing
 import json
 
 from scripts.edit_decision import (
@@ -28,6 +27,39 @@ from scripts.llm_client import LLMClientError, analyze_transcript, load_agent_pr
 from scripts.pipeline import process_video
 from scripts.transcription import TranscriptSegment
 from scripts.video_cutter import adjust_srt_for_edl, cut_video, get_video_duration
+
+
+def format_transcript_for_editing(
+    segments: list[TranscriptSegment], context: str | None = None
+) -> str:
+    """
+    Format transcript segments for AI agent review.
+
+    Produces output in the format:
+        [0] 0.0-2.0: Hello everyone
+        [1] 2.0-5.0: Let me try again
+
+    Args:
+        segments: List of TranscriptSegment objects to format
+        context: Optional context string to include at the beginning
+
+    Returns:
+        Formatted string with segment indices, timestamps, and text
+    """
+    if not segments:
+        return ""
+
+    lines = []
+
+    if context:
+        lines.append(context)
+        lines.append("")  # Blank line after context
+
+    for i, segment in enumerate(segments):
+        line = f"[{i}] {segment.start}-{segment.end}: {segment.text}"
+        lines.append(line)
+
+    return "\n".join(lines)
 
 
 def _parse_srt_timestamp(timestamp: str) -> float:
