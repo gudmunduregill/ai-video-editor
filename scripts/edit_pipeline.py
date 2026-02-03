@@ -555,7 +555,7 @@ def apply_edl_to_video(
     edl_path: str,
     output_path: Optional[str] = None,
     srt_path: Optional[str] = None,
-) -> str | dict:
+) -> dict:
     """
     Apply a previously generated/reviewed EDL to a video.
 
@@ -566,8 +566,9 @@ def apply_edl_to_video(
         srt_path: Optional path to input SRT file. If provided, generates adjusted SRT.
 
     Returns:
-        If srt_path is None: Path to the edited video file (str) for backward compatibility
-        If srt_path is provided: Dict with 'video_path' and 'srt_path' keys
+        Dict with:
+            - 'video_path': Path to the edited video file
+            - 'srt_path': Path to adjusted SRT file (only present if srt_path was provided)
 
     Raises:
         FileNotFoundError: If video, EDL, or SRT file does not exist
@@ -588,6 +589,8 @@ def apply_edl_to_video(
     # Apply cuts using video_cutter
     edited_video_path = cut_video(video_path, edl, output_path)
 
+    result = {"video_path": edited_video_path}
+
     # If SRT file provided, adjust it for the cut video
     if srt_path is not None:
         # Generate output SRT path based on video output path
@@ -595,11 +598,6 @@ def apply_edl_to_video(
         srt_output_path = str(video_output_path.with_suffix(".srt"))
 
         adjusted_srt_path = adjust_srt_for_edl(srt_path, edl, srt_output_path)
+        result["srt_path"] = adjusted_srt_path
 
-        return {
-            "video_path": edited_video_path,
-            "srt_path": adjusted_srt_path,
-        }
-
-    # Return string for backward compatibility when no SRT provided
-    return edited_video_path
+    return result

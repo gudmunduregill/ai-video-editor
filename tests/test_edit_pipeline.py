@@ -412,7 +412,8 @@ class TestApplyEdlToVideo:
             result = apply_edl_to_video(str(video_path), str(edl_path))
 
         mock_cut.assert_called_once()
-        assert result == str(tmp_path / "output.mp4")
+        assert result["video_path"] == str(tmp_path / "output.mp4")
+        assert "srt_path" not in result
 
     def test_apply_edl_passes_output_path(
         self, tmp_path: Path, sample_edl: EditDecisionList
@@ -1078,10 +1079,10 @@ Hello"""
         assert result["video_path"] == str(tmp_path / "output.mp4")
         assert result["srt_path"] == str(tmp_path / "output.srt")
 
-    def test_apply_edl_without_srt_maintains_backward_compatibility(
+    def test_apply_edl_without_srt_returns_dict_with_video_path_only(
         self, tmp_path: Path, sample_edl: EditDecisionList
     ) -> None:
-        """apply_edl_to_video without srt_path returns string for backward compatibility."""
+        """apply_edl_to_video without srt_path returns dict with video_path only."""
         from scripts.edit_decision import edl_to_json
         from scripts.edit_pipeline import apply_edl_to_video
 
@@ -1096,9 +1097,10 @@ Hello"""
 
             result = apply_edl_to_video(str(video_path), str(edl_path))
 
-        # Should return string for backward compatibility
-        assert isinstance(result, str)
-        assert result == str(tmp_path / "output.mp4")
+        # Should return dict with video_path, no srt_path
+        assert isinstance(result, dict)
+        assert result["video_path"] == str(tmp_path / "output.mp4")
+        assert "srt_path" not in result
 
     def test_apply_edl_with_srt_generates_correct_output_path(
         self, tmp_path: Path, sample_edl: EditDecisionList

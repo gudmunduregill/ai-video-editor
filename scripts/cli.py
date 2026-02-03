@@ -307,12 +307,9 @@ def _run_apply_edl(args: argparse.Namespace) -> int:
             srt_path=args.srt,
         )
 
-        # Handle dict return type when SRT provided
-        if isinstance(result, dict):
-            print(f"Edited video saved to: {result['video_path']}")
+        print(f"Edited video saved to: {result['video_path']}")
+        if "srt_path" in result:
             print(f"Adjusted subtitles saved to: {result['srt_path']}")
-        else:
-            print(f"Edited video saved to: {result}")
         return 0
 
     except FileNotFoundError as e:

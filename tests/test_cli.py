@@ -987,7 +987,7 @@ class TestCliApplyEdlSubcommandExecution:
         edl_path.write_text('{"source_video": "test.mp4", "segments": [], "total_duration": 120.0}')
 
         with patch("scripts.cli.apply_edl_to_video") as mock_apply:
-            mock_apply.return_value = str(tmp_path / "test_edited.mp4")
+            mock_apply.return_value = {"video_path": str(tmp_path / "test_edited.mp4")}
 
             exit_code = main(["apply-edl", str(video_path), str(edl_path)])
 
@@ -1012,7 +1012,7 @@ class TestCliApplyEdlSubcommandExecution:
         output_path = str(tmp_path / "custom_output.mp4")
 
         with patch("scripts.cli.apply_edl_to_video") as mock_apply:
-            mock_apply.return_value = output_path
+            mock_apply.return_value = {"video_path": output_path}
 
             main(["apply-edl", str(video_path), str(edl_path), "--output", output_path])
 
@@ -1032,7 +1032,7 @@ class TestCliApplyEdlSubcommandExecution:
         output_path = str(tmp_path / "test_edited.mp4")
 
         with patch("scripts.cli.apply_edl_to_video") as mock_apply:
-            mock_apply.return_value = output_path
+            mock_apply.return_value = {"video_path": output_path}
 
             main(["apply-edl", str(video_path), str(edl_path)])
 
