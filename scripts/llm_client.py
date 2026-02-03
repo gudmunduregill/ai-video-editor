@@ -11,6 +11,10 @@ from pathlib import Path
 import anthropic
 
 
+# Default model for AI analysis. Can be overridden via CLAUDE_MODEL env var.
+DEFAULT_MODEL = "claude-sonnet-4-20250514"
+
+
 class LLMClientError(Exception):
     """Raised when LLM client operations fail."""
 
@@ -71,10 +75,22 @@ def load_agent_prompt(agent_name: str) -> str:
     return content.strip()
 
 
+def get_model() -> str:
+    """
+    Get the Claude model to use.
+
+    Checks CLAUDE_MODEL environment variable first, then falls back to DEFAULT_MODEL.
+
+    Returns:
+        The model identifier string.
+    """
+    return os.environ.get("CLAUDE_MODEL", DEFAULT_MODEL)
+
+
 def analyze_transcript(
     transcript: str,
     agent_prompt: str,
-    model: str = "claude-sonnet-4-20250514",
+    model: str | None = None,
 ) -> str:
     """
     Analyze a transcript using Claude API.
@@ -85,7 +101,8 @@ def analyze_transcript(
     Args:
         transcript: The formatted transcript text to analyze.
         agent_prompt: The system prompt for the agent.
-        model: The Claude model to use. Defaults to claude-sonnet-4-20250514.
+        model: The Claude model to use. If None, uses CLAUDE_MODEL env var
+               or falls back to DEFAULT_MODEL.
 
     Returns:
         The AI's response text containing edit decisions.
@@ -93,6 +110,9 @@ def analyze_transcript(
     Raises:
         LLMClientError: If the API call fails or returns an error.
     """
+    if model is None:
+        model = get_model()
+
     try:
         api_key = get_api_key()
         client = anthropic.Anthropic(api_key=api_key)

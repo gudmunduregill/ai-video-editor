@@ -7,9 +7,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from scripts.llm_client import (
+    DEFAULT_MODEL,
     LLMClientError,
     analyze_transcript,
     get_api_key,
+    get_model,
     load_agent_prompt,
 )
 
@@ -42,6 +44,30 @@ class TestGetApiKey:
             get_api_key()
 
         assert "ANTHROPIC_API_KEY environment variable not set" in str(exc_info.value)
+
+
+class TestGetModel:
+    """Tests for get_model function."""
+
+    def test_get_model_returns_default_when_env_not_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """get_model returns DEFAULT_MODEL when CLAUDE_MODEL is not set."""
+        monkeypatch.delenv("CLAUDE_MODEL", raising=False)
+
+        result = get_model()
+
+        assert result == DEFAULT_MODEL
+
+    def test_get_model_returns_env_value_when_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """get_model returns CLAUDE_MODEL environment variable when set."""
+        monkeypatch.setenv("CLAUDE_MODEL", "claude-opus-4-20250514")
+
+        result = get_model()
+
+        assert result == "claude-opus-4-20250514"
 
 
 class TestLoadAgentPrompt:
@@ -144,7 +170,28 @@ class TestAnalyzeTranscript:
             )
 
         call_kwargs = mock_client.messages.create.call_args.kwargs
-        assert call_kwargs["model"] == "claude-sonnet-4-20250514"
+        assert call_kwargs["model"] == DEFAULT_MODEL
+
+    def test_analyze_transcript_uses_env_model(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """analyze_transcript uses CLAUDE_MODEL env var when model not specified."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        monkeypatch.setenv("CLAUDE_MODEL", "claude-opus-4-20250514")
+
+        mock_client = MagicMock()
+        mock_message = MagicMock()
+        mock_message.content = [MagicMock(text="[KEEP] 0: Test")]
+        mock_client.messages.create.return_value = mock_message
+
+        with patch("scripts.llm_client.anthropic.Anthropic", return_value=mock_client):
+            analyze_transcript(
+                transcript="[0] 0-5: Test",
+                agent_prompt="Test prompt",
+            )
+
+        call_kwargs = mock_client.messages.create.call_args.kwargs
+        assert call_kwargs["model"] == "claude-opus-4-20250514"
 
     def test_analyze_transcript_raises_on_api_error(
         self, monkeypatch: pytest.MonkeyPatch
