@@ -738,16 +738,17 @@ class TestAnalyzeWithAi:
     def test_analyze_with_ai_returns_empty_when_not_using_ai(
         self, sample_transcript_segments: list[TranscriptSegment]
     ) -> None:
-        """_analyze_with_ai returns empty list when use_ai=False."""
+        """_analyze_with_ai returns empty list and None response when use_ai=False."""
         from scripts.edit_pipeline import _analyze_with_ai
 
-        result = _analyze_with_ai(
+        segments, raw_response = _analyze_with_ai(
             transcript="[0] 0-5: Hello",
             segments=sample_transcript_segments,
             use_ai=False,
         )
 
-        assert result == []
+        assert segments == []
+        assert raw_response is None
 
     def test_analyze_with_ai_calls_llm(
         self, sample_transcript_segments: list[TranscriptSegment]
@@ -762,7 +763,7 @@ class TestAnalyzeWithAi:
                 mock_load.return_value = "Test prompt"
                 mock_analyze.return_value = mock_response
 
-                result = _analyze_with_ai(
+                segments, raw_response = _analyze_with_ai(
                     transcript="[0] 0-5: Hello",
                     segments=sample_transcript_segments,
                     use_ai=True,
@@ -770,8 +771,9 @@ class TestAnalyzeWithAi:
 
         mock_load.assert_called_once_with("video-editor")
         mock_analyze.assert_called_once()
-        assert len(result) == 1
-        assert result[0].transcript_indices == [0, 1, 2]
+        assert len(segments) == 1
+        assert segments[0].transcript_indices == [0, 1, 2]
+        assert raw_response == mock_response
 
     def test_analyze_with_ai_propagates_llm_error(
         self, sample_transcript_segments: list[TranscriptSegment]
@@ -995,10 +997,12 @@ Hello"""
 
         assert edl_data["segments"][0]["action"] == "keep"
 
-        # Should warn about fallback
+        # Should warn about fallback and show response preview
         captured = capsys.readouterr()
         assert "Warning" in captured.err
         assert "Falling back" in captured.err
+        assert "AI response preview" in captured.err
+        assert "I don't understand" in captured.err
 
     def test_edit_video_warns_when_all_remove(
         self, tmp_path: Path, capsys: pytest.CaptureFixture

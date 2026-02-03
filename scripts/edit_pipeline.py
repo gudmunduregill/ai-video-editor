@@ -320,7 +320,7 @@ def _analyze_with_ai(
     transcript: str,
     segments: list[TranscriptSegment],
     use_ai: bool,
-) -> list[EditSegment]:
+) -> tuple[list[EditSegment], str | None]:
     """
     Analyze transcript with AI to suggest edits.
 
@@ -335,13 +335,15 @@ def _analyze_with_ai(
         use_ai: Whether to actually call the AI.
 
     Returns:
-        List of EditSegment objects from AI analysis, or empty list if not using AI.
+        Tuple of (edit_segments, raw_response):
+        - edit_segments: List of EditSegment objects from AI analysis
+        - raw_response: The raw AI response text, or None if use_ai=False
 
     Raises:
         LLMClientError: If the API call fails.
     """
     if not use_ai:
-        return []
+        return [], None
 
     # Load the video-editor agent prompt
     agent_prompt = load_agent_prompt("video-editor")
@@ -352,7 +354,7 @@ def _analyze_with_ai(
     # Parse the response
     edit_segments = _parse_ai_response(response, segments)
 
-    return edit_segments
+    return edit_segments, response
 
 
 def _create_edl_from_ai_segments(
@@ -492,7 +494,7 @@ def edit_video(
 
     # Step 4: Create EDL - either AI-analyzed or all-KEEP
     if use_ai:
-        ai_segments = _analyze_with_ai(transcript_for_review, segments, use_ai=True)
+        ai_segments, raw_response = _analyze_with_ai(transcript_for_review, segments, use_ai=True)
         if ai_segments:
             edl = _create_edl_from_ai_segments(ai_segments, segments, video_path, duration)
             # Check if all segments are REMOVE
@@ -503,11 +505,20 @@ def edit_video(
                     file=sys.stderr,
                 )
         else:
-            # Parse failure - fall back to all-KEEP with warning
+            # Parse failure - show what we got and fall back to all-KEEP
             print(
                 "Warning: Failed to parse AI response. Falling back to all-KEEP EDL.",
                 file=sys.stderr,
             )
+            if raw_response:
+                # Show first 500 chars of response for debugging
+                preview = raw_response[:500]
+                if len(raw_response) > 500:
+                    preview += "..."
+                print(
+                    f"AI response preview:\n{preview}",
+                    file=sys.stderr,
+                )
             edl = _create_initial_edl(segments, video_path, duration)
     else:
         edl = _create_initial_edl(segments, video_path, duration)
