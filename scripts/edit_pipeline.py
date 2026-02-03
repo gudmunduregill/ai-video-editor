@@ -24,9 +24,42 @@ from scripts.edit_decision import (
     edl_to_json,
 )
 from scripts.llm_client import LLMClientError, analyze_transcript, load_agent_prompt
-from scripts.pipeline import process_video
+from scripts.pipeline import derive_output_path, process_video
 from scripts.transcription import TranscriptSegment
 from scripts.video_cutter import adjust_srt_for_edl, cut_video, get_video_duration
+
+
+def _find_or_generate_srt(video_path: str) -> str:
+    """
+    Find an existing SRT file for a video or generate one.
+
+    Search order:
+    1. Same directory as video ({video_stem}.srt)
+    2. output/ directory if video is in source/
+    3. If not found, generate using process_video()
+
+    Args:
+        video_path: Path to the video file
+
+    Returns:
+        Path to the SRT file (existing or newly generated)
+    """
+    video_path_obj = Path(video_path)
+
+    # Try same directory as video
+    srt_in_same_dir = video_path_obj.with_suffix(".srt")
+    if srt_in_same_dir.exists():
+        return str(srt_in_same_dir)
+
+    # Try output/ directory if video is in source/
+    if video_path_obj.parent.name == "source":
+        output_dir = video_path_obj.parent.parent / "output"
+        srt_in_output = output_dir / (video_path_obj.stem + ".srt")
+        if srt_in_output.exists():
+            return str(srt_in_output)
+
+    # No SRT found - generate one
+    return process_video(video_path)
 
 
 def format_transcript_for_editing(
@@ -525,8 +558,7 @@ def edit_video(
 
     # Step 5: Determine EDL path and save
     if edl_path is None:
-        video_path_obj = Path(video_path)
-        edl_path = str(video_path_obj.with_suffix(".edl.json"))
+        edl_path = derive_output_path(video_path, ".edl.json")
 
     with open(edl_path, "w", encoding="utf-8") as f:
         f.write(edl_to_json(edl))
@@ -559,16 +591,19 @@ def apply_edl_to_video(
     """
     Apply a previously generated/reviewed EDL to a video.
 
+    Automatically generates adjusted subtitles for the edited video. If no SRT
+    file is provided, attempts to find an existing one or generates a new one.
+
     Args:
         video_path: Path to the input video file
         edl_path: Path to the EDL JSON file
-        output_path: Optional path for output video. If None, generates temp file.
-        srt_path: Optional path to input SRT file. If provided, generates adjusted SRT.
+        output_path: Optional path for output video. If None, generates default path.
+        srt_path: Optional path to input SRT file. If None, auto-detects or generates.
 
     Returns:
         Dict with:
             - 'video_path': Path to the edited video file
-            - 'srt_path': Path to adjusted SRT file (only present if srt_path was provided)
+            - 'srt_path': Path to adjusted SRT file
 
     Raises:
         FileNotFoundError: If video, EDL, or SRT file does not exist
@@ -580,6 +615,10 @@ def apply_edl_to_video(
     if not os.path.exists(edl_path):
         raise FileNotFoundError(f"EDL file not found: {edl_path}")
 
+    # Determine output path if not provided
+    if output_path is None:
+        output_path = derive_output_path(video_path, "_edited.mp4")
+
     # Load EDL from JSON - use json.load directly on file handle for memory efficiency
     with open(edl_path, "r", encoding="utf-8") as f:
         edl_data = json.load(f)
@@ -589,15 +628,18 @@ def apply_edl_to_video(
     # Apply cuts using video_cutter
     edited_video_path = cut_video(video_path, edl, output_path)
 
-    result = {"video_path": edited_video_path}
+    # Auto-detect or generate SRT if not provided
+    if srt_path is None:
+        srt_path = _find_or_generate_srt(video_path)
 
-    # If SRT file provided, adjust it for the cut video
-    if srt_path is not None:
-        # Generate output SRT path based on video output path
-        video_output_path = Path(edited_video_path)
-        srt_output_path = str(video_output_path.with_suffix(".srt"))
+    # Generate output SRT path based on video output path
+    video_output_path = Path(edited_video_path)
+    srt_output_path = str(video_output_path.with_suffix(".srt"))
 
-        adjusted_srt_path = adjust_srt_for_edl(srt_path, edl, srt_output_path)
-        result["srt_path"] = adjusted_srt_path
+    # Adjust SRT for the cut video
+    adjusted_srt_path = adjust_srt_for_edl(srt_path, edl, srt_output_path)
 
-    return result
+    return {
+        "video_path": edited_video_path,
+        "srt_path": adjusted_srt_path,
+    }

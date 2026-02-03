@@ -406,14 +406,21 @@ class TestApplyEdlToVideo:
         edl_path = tmp_path / "edl.json"
         edl_path.write_text(edl_to_json(sample_edl))
 
-        with patch("scripts.edit_pipeline.cut_video") as mock_cut:
-            mock_cut.return_value = str(tmp_path / "output.mp4")
+        # Create SRT for auto-detection (now required behavior)
+        srt_path = tmp_path / "video.srt"
+        srt_path.write_text("1\n00:00:00,000 --> 00:00:05,000\nHello")
 
-            result = apply_edl_to_video(str(video_path), str(edl_path))
+        with patch("scripts.edit_pipeline.cut_video") as mock_cut:
+            with patch("scripts.edit_pipeline.adjust_srt_for_edl") as mock_adjust:
+                mock_cut.return_value = str(tmp_path / "output.mp4")
+                mock_adjust.return_value = str(tmp_path / "output.srt")
+
+                result = apply_edl_to_video(str(video_path), str(edl_path))
 
         mock_cut.assert_called_once()
         assert result["video_path"] == str(tmp_path / "output.mp4")
-        assert "srt_path" not in result
+        # srt_path is now always present
+        assert "srt_path" in result
 
     def test_apply_edl_passes_output_path(
         self, tmp_path: Path, sample_edl: EditDecisionList
@@ -428,14 +435,20 @@ class TestApplyEdlToVideo:
         edl_path = tmp_path / "edl.json"
         edl_path.write_text(edl_to_json(sample_edl))
 
+        # Create SRT for auto-detection (now required behavior)
+        srt_path = tmp_path / "video.srt"
+        srt_path.write_text("1\n00:00:00,000 --> 00:00:05,000\nHello")
+
         output_path = tmp_path / "custom_output.mp4"
 
         with patch("scripts.edit_pipeline.cut_video") as mock_cut:
-            mock_cut.return_value = str(output_path)
+            with patch("scripts.edit_pipeline.adjust_srt_for_edl") as mock_adjust:
+                mock_cut.return_value = str(output_path)
+                mock_adjust.return_value = str(tmp_path / "custom_output.srt")
 
-            result = apply_edl_to_video(
-                str(video_path), str(edl_path), str(output_path)
-            )
+                result = apply_edl_to_video(
+                    str(video_path), str(edl_path), str(output_path)
+                )
 
         # Verify cut_video was called with output_path
         call_args = mock_cut.call_args
@@ -1037,13 +1050,127 @@ Hello"""
         assert "removing all segments" in captured.err
 
 
+class TestFindOrGenerateSrt:
+    """Tests for _find_or_generate_srt function."""
+
+    def test_finds_srt_in_same_directory(self, tmp_path: Path) -> None:
+        """_find_or_generate_srt finds SRT in the same directory as video."""
+        from scripts.edit_pipeline import _find_or_generate_srt
+
+        video_path = tmp_path / "video.mp4"
+        video_path.touch()
+
+        srt_path = tmp_path / "video.srt"
+        srt_path.write_text("1\n00:00:00,000 --> 00:00:01,000\nTest")
+
+        result = _find_or_generate_srt(str(video_path))
+
+        assert result == str(srt_path)
+
+    def test_finds_srt_in_output_directory_when_video_in_source(
+        self, tmp_path: Path
+    ) -> None:
+        """_find_or_generate_srt finds SRT in output/ when video is in source/."""
+        from scripts.edit_pipeline import _find_or_generate_srt
+
+        # Create source/ and output/ directories
+        source_dir = tmp_path / "source"
+        source_dir.mkdir()
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        video_path = source_dir / "video.mp4"
+        video_path.touch()
+
+        srt_path = output_dir / "video.srt"
+        srt_path.write_text("1\n00:00:00,000 --> 00:00:01,000\nTest")
+
+        result = _find_or_generate_srt(str(video_path))
+
+        assert result == str(srt_path)
+
+    def test_prefers_same_directory_over_output_directory(
+        self, tmp_path: Path
+    ) -> None:
+        """_find_or_generate_srt prefers SRT in same directory over output/."""
+        from scripts.edit_pipeline import _find_or_generate_srt
+
+        # Create source/ and output/ directories
+        source_dir = tmp_path / "source"
+        source_dir.mkdir()
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        video_path = source_dir / "video.mp4"
+        video_path.touch()
+
+        # SRT in both locations
+        srt_in_source = source_dir / "video.srt"
+        srt_in_source.write_text("1\n00:00:00,000 --> 00:00:01,000\nSource")
+
+        srt_in_output = output_dir / "video.srt"
+        srt_in_output.write_text("1\n00:00:00,000 --> 00:00:01,000\nOutput")
+
+        result = _find_or_generate_srt(str(video_path))
+
+        # Should prefer same directory
+        assert result == str(srt_in_source)
+
+    def test_generates_srt_when_not_found(self, tmp_path: Path) -> None:
+        """_find_or_generate_srt calls process_video when no SRT exists."""
+        from scripts.edit_pipeline import _find_or_generate_srt
+
+        video_path = tmp_path / "video.mp4"
+        video_path.touch()
+
+        generated_srt_path = str(tmp_path / "video.srt")
+
+        with patch("scripts.edit_pipeline.process_video") as mock_process:
+            mock_process.return_value = generated_srt_path
+
+            result = _find_or_generate_srt(str(video_path))
+
+        mock_process.assert_called_once_with(str(video_path))
+        assert result == generated_srt_path
+
+    def test_does_not_check_output_when_video_not_in_source(
+        self, tmp_path: Path
+    ) -> None:
+        """_find_or_generate_srt does not check output/ when video is not in source/."""
+        from scripts.edit_pipeline import _find_or_generate_srt
+
+        # Video in regular directory (not source/)
+        video_dir = tmp_path / "videos"
+        video_dir.mkdir()
+
+        video_path = video_dir / "video.mp4"
+        video_path.touch()
+
+        # Create output/ at same level - should not be checked
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+        srt_in_output = output_dir / "video.srt"
+        srt_in_output.write_text("1\n00:00:00,000 --> 00:00:01,000\nTest")
+
+        generated_srt_path = str(video_dir / "video.srt")
+
+        with patch("scripts.edit_pipeline.process_video") as mock_process:
+            mock_process.return_value = generated_srt_path
+
+            result = _find_or_generate_srt(str(video_path))
+
+        # Should generate, not find the one in output/
+        mock_process.assert_called_once()
+        assert result == generated_srt_path
+
+
 class TestApplyEdlToVideoWithSrt:
     """Tests for apply_edl_to_video with SRT file support."""
 
-    def test_apply_edl_with_srt_generates_adjusted_srt(
+    def test_apply_edl_with_explicit_srt_generates_adjusted_srt(
         self, tmp_path: Path, sample_edl: EditDecisionList
     ) -> None:
-        """apply_edl_to_video with srt_path generates adjusted SRT file."""
+        """apply_edl_to_video with explicit srt_path generates adjusted SRT file."""
         from scripts.edit_decision import edl_to_json
         from scripts.edit_pipeline import apply_edl_to_video
 
@@ -1079,10 +1206,10 @@ Hello"""
         assert result["video_path"] == str(tmp_path / "output.mp4")
         assert result["srt_path"] == str(tmp_path / "output.srt")
 
-    def test_apply_edl_without_srt_returns_dict_with_video_path_only(
+    def test_apply_edl_auto_detects_srt_in_same_directory(
         self, tmp_path: Path, sample_edl: EditDecisionList
     ) -> None:
-        """apply_edl_to_video without srt_path returns dict with video_path only."""
+        """apply_edl_to_video auto-detects SRT in the same directory as video."""
         from scripts.edit_decision import edl_to_json
         from scripts.edit_pipeline import apply_edl_to_video
 
@@ -1092,15 +1219,85 @@ Hello"""
         edl_path = tmp_path / "edl.json"
         edl_path.write_text(edl_to_json(sample_edl))
 
+        # Create SRT in same directory with matching name
+        srt_path = tmp_path / "video.srt"
+        srt_path.write_text("1\n00:00:00,000 --> 00:00:05,000\nHello")
+
         with patch("scripts.edit_pipeline.cut_video") as mock_cut:
-            mock_cut.return_value = str(tmp_path / "output.mp4")
+            with patch("scripts.edit_pipeline.adjust_srt_for_edl") as mock_adjust_srt:
+                mock_cut.return_value = str(tmp_path / "video_edited.mp4")
+                mock_adjust_srt.return_value = str(tmp_path / "video_edited.srt")
 
-            result = apply_edl_to_video(str(video_path), str(edl_path))
+                result = apply_edl_to_video(str(video_path), str(edl_path))
 
-        # Should return dict with video_path, no srt_path
-        assert isinstance(result, dict)
-        assert result["video_path"] == str(tmp_path / "output.mp4")
-        assert "srt_path" not in result
+        # Should have auto-detected and used the SRT
+        mock_adjust_srt.assert_called_once()
+        call_args = mock_adjust_srt.call_args[0]
+        assert call_args[0] == str(srt_path)  # First arg is source SRT
+
+        assert "srt_path" in result
+
+    def test_apply_edl_generates_srt_when_not_found(
+        self, tmp_path: Path, sample_edl: EditDecisionList
+    ) -> None:
+        """apply_edl_to_video generates SRT when none exists."""
+        from scripts.edit_decision import edl_to_json
+        from scripts.edit_pipeline import apply_edl_to_video
+
+        video_path = tmp_path / "video.mp4"
+        video_path.touch()
+
+        edl_path = tmp_path / "edl.json"
+        edl_path.write_text(edl_to_json(sample_edl))
+
+        generated_srt_path = str(tmp_path / "video.srt")
+
+        with patch("scripts.edit_pipeline.cut_video") as mock_cut:
+            with patch("scripts.edit_pipeline.adjust_srt_for_edl") as mock_adjust_srt:
+                with patch("scripts.edit_pipeline.process_video") as mock_process:
+                    mock_cut.return_value = str(tmp_path / "video_edited.mp4")
+                    mock_adjust_srt.return_value = str(tmp_path / "video_edited.srt")
+                    mock_process.return_value = generated_srt_path
+
+                    result = apply_edl_to_video(str(video_path), str(edl_path))
+
+        # Should have called process_video to generate SRT
+        mock_process.assert_called_once_with(str(video_path))
+
+        # Should have used the generated SRT
+        mock_adjust_srt.assert_called_once()
+        call_args = mock_adjust_srt.call_args[0]
+        assert call_args[0] == generated_srt_path
+
+        assert "srt_path" in result
+
+    def test_apply_edl_always_returns_srt_path(
+        self, tmp_path: Path, sample_edl: EditDecisionList
+    ) -> None:
+        """apply_edl_to_video always returns srt_path in result dict."""
+        from scripts.edit_decision import edl_to_json
+        from scripts.edit_pipeline import apply_edl_to_video
+
+        video_path = tmp_path / "video.mp4"
+        video_path.touch()
+
+        edl_path = tmp_path / "edl.json"
+        edl_path.write_text(edl_to_json(sample_edl))
+
+        # Create SRT for auto-detection
+        srt_path = tmp_path / "video.srt"
+        srt_path.write_text("1\n00:00:00,000 --> 00:00:05,000\nHello")
+
+        with patch("scripts.edit_pipeline.cut_video") as mock_cut:
+            with patch("scripts.edit_pipeline.adjust_srt_for_edl") as mock_adjust_srt:
+                mock_cut.return_value = str(tmp_path / "output.mp4")
+                mock_adjust_srt.return_value = str(tmp_path / "output.srt")
+
+                result = apply_edl_to_video(str(video_path), str(edl_path))
+
+        # srt_path should always be present
+        assert "srt_path" in result
+        assert result["srt_path"] == str(tmp_path / "output.srt")
 
     def test_apply_edl_with_srt_generates_correct_output_path(
         self, tmp_path: Path, sample_edl: EditDecisionList
@@ -1141,10 +1338,10 @@ Hello"""
         expected_srt_path = str(tmp_path / "custom_output.srt")
         assert result["srt_path"] == expected_srt_path
 
-    def test_apply_edl_with_srt_file_not_found(
+    def test_apply_edl_with_explicit_nonexistent_srt_raises_error(
         self, tmp_path: Path, sample_edl: EditDecisionList
     ) -> None:
-        """apply_edl_to_video raises FileNotFoundError for missing SRT file."""
+        """apply_edl_to_video raises FileNotFoundError for explicit nonexistent SRT."""
         from scripts.edit_decision import edl_to_json
         from scripts.edit_pipeline import apply_edl_to_video
 

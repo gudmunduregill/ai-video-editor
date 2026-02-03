@@ -12,6 +12,35 @@ from scripts.transcription import transcribe
 SUPPORTED_SUBTITLE_FORMATS = ("srt", "vtt")
 
 
+def derive_output_path(video_path: str, extension: str) -> str:
+    """
+    Derive output path from video path.
+
+    If video is in a source/ directory, output goes to sibling output/ directory.
+    Otherwise, output goes to same directory as video (backwards compatible).
+
+    Args:
+        video_path: Path to the input video file
+        extension: File extension for output (e.g., ".srt", ".edl.json", "_edited.mp4")
+
+    Returns:
+        Path string for the output file
+    """
+    video_path_obj = Path(video_path)
+    parent = video_path_obj.parent
+
+    # Check if video is in a "source" directory
+    if parent.name == "source":
+        # Output goes to sibling "output" directory
+        output_dir = parent.parent / "output"
+        output_dir.mkdir(exist_ok=True)
+        return str(output_dir / video_path_obj.stem) + extension
+    else:
+        # Same directory as video (backwards compatible)
+        # Use stem + extension to handle complex suffixes like "_edited.mp4"
+        return str(parent / video_path_obj.stem) + extension
+
+
 def process_video(
     video_path: str,
     output_path: Optional[str] = None,
@@ -59,8 +88,7 @@ def process_video(
 
     # Determine output subtitle path with appropriate extension
     if output_path is None:
-        video_path_obj = Path(video_path)
-        output_path = str(video_path_obj.with_suffix(f".{subtitle_format}"))
+        output_path = derive_output_path(video_path, f".{subtitle_format}")
 
     # Extract audio to temp file, then transcribe and write subtitle file
     temp_audio_path: Optional[str] = None

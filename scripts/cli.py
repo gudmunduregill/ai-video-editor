@@ -161,7 +161,7 @@ def _create_apply_edl_parser(subparsers: argparse._SubParsersAction) -> None:
 
     apply_edl_parser.add_argument(
         "--srt",
-        help="Path to input SRT file to adjust timestamps for cut video",
+        help="Path to input SRT file (optional - auto-detected from video or generated if not found)",
         default=None,
     )
 
@@ -308,8 +308,7 @@ def _run_apply_edl(args: argparse.Namespace) -> int:
         )
 
         print(f"Edited video saved to: {result['video_path']}")
-        if "srt_path" in result:
-            print(f"Adjusted subtitles saved to: {result['srt_path']}")
+        print(f"Adjusted subtitles saved to: {result['srt_path']}")
         return 0
 
     except FileNotFoundError as e:
