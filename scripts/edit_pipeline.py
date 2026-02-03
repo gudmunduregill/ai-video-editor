@@ -4,11 +4,13 @@ This module provides functions for the complete video editing pipeline:
 1. Generating/loading transcripts
 2. Formatting transcripts for AI review
 3. Creating initial EDLs
-4. Applying EDLs to cut videos
+4. Optionally using AI to analyze and suggest edits
+5. Applying EDLs to cut videos
 """
 
 import os
 import re
+import sys
 from pathlib import Path
 from typing import Generator, Optional
 
@@ -22,9 +24,10 @@ from scripts.edit_decision import (
     edl_from_dict,
     edl_to_json,
 )
+from scripts.llm_client import LLMClientError, analyze_transcript, load_agent_prompt
 from scripts.pipeline import process_video
 from scripts.transcription import TranscriptSegment
-from scripts.video_cutter import cut_video, get_video_duration
+from scripts.video_cutter import adjust_srt_for_edl, cut_video, get_video_duration
 
 
 def _parse_srt_timestamp(timestamp: str) -> float:
@@ -188,12 +191,222 @@ def _create_initial_edl(
     )
 
 
+def _parse_ai_response(
+    response: str,
+    segments: list[TranscriptSegment],
+) -> list[EditSegment]:
+    """
+    Parse AI response into EditSegment objects.
+
+    The AI response format looks like:
+        [KEEP] 0-5: Main introduction
+        [REMOVE] 6-7: "Let me try again, sorry" - Retake
+        [KEEP] 8-15: Core content explaining the topic
+        [REVIEW] 16-17: Borderline content
+
+    Note: [REVIEW] segments are treated as [KEEP] since they need human decision.
+
+    Args:
+        response: The AI's response text containing edit decisions.
+        segments: Original transcript segments to get timestamps from.
+
+    Returns:
+        List of EditSegment objects. Returns empty list if parsing fails completely.
+    """
+    if not response or not response.strip():
+        return []
+
+    # Pattern to match: [KEEP] 0: reason  OR  [KEEP] 0-5: reason
+    # Also supports [REVIEW] which we treat as KEEP
+    pattern = r"\[([Kk][Ee][Ee][Pp]|[Rr][Ee][Mm][Oo][Vv][Ee]|[Rr][Ee][Vv][Ii][Ee][Ww])\]\s*(-?\d+)(?:-(-?\d+))?\s*:\s*(.+)"
+
+    result: list[EditSegment] = []
+    lines = response.strip().split("\n")
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+
+        match = re.match(pattern, line)
+        if match:
+            action_str = match.group(1).upper()
+            start_index = int(match.group(2))
+            end_index_str = match.group(3)
+            reason_text = match.group(4).strip()
+
+            # Determine the range of indices
+            if end_index_str:
+                end_index = int(end_index_str)
+            else:
+                end_index = start_index
+
+            # Validate indices - skip invalid ones with warning
+            if start_index < 0 or start_index >= len(segments):
+                print(
+                    f"Warning: Skipping invalid start index {start_index} in AI response",
+                    file=sys.stderr,
+                )
+                continue
+            if end_index < 0 or end_index >= len(segments):
+                print(
+                    f"Warning: Skipping invalid end index {end_index} in AI response",
+                    file=sys.stderr,
+                )
+                continue
+
+            # Get timestamps from original segments
+            start_time = segments[start_index].start
+            end_time = segments[end_index].end
+
+            # Build list of transcript indices
+            transcript_indices = list(range(start_index, end_index + 1))
+
+            # Determine action - REVIEW is treated as KEEP
+            if action_str == "REMOVE":
+                action = EditAction.REMOVE
+                reason = reason_text
+            else:
+                # KEEP or REVIEW
+                action = EditAction.KEEP
+                reason = None
+
+            result.append(
+                EditSegment(
+                    start=start_time,
+                    end=end_time,
+                    action=action,
+                    reason=reason,
+                    transcript_indices=transcript_indices,
+                )
+            )
+
+    return result
+
+
+def _analyze_with_ai(
+    transcript: str,
+    segments: list[TranscriptSegment],
+    use_ai: bool,
+) -> list[EditSegment]:
+    """
+    Analyze transcript with AI to suggest edits.
+
+    When use_ai is True, calls the Claude API with the video-editor agent prompt
+    to analyze the transcript and suggest KEEP/REMOVE decisions.
+
+    When use_ai is False, returns an empty list (caller should use all-KEEP EDL).
+
+    Args:
+        transcript: The formatted transcript text.
+        segments: Original transcript segments for timestamp lookup.
+        use_ai: Whether to actually call the AI.
+
+    Returns:
+        List of EditSegment objects from AI analysis, or empty list if not using AI.
+
+    Raises:
+        LLMClientError: If the API call fails.
+    """
+    if not use_ai:
+        return []
+
+    # Load the video-editor agent prompt
+    agent_prompt = load_agent_prompt("video-editor")
+
+    # Call Claude API
+    response = analyze_transcript(transcript, agent_prompt)
+
+    # Parse the response
+    edit_segments = _parse_ai_response(response, segments)
+
+    return edit_segments
+
+
+def _create_edl_from_ai_segments(
+    ai_segments: list[EditSegment],
+    all_segments: list[TranscriptSegment],
+    video_path: str,
+    duration: float,
+) -> EditDecisionList:
+    """
+    Create an EDL from AI-analyzed segments, filling gaps with KEEP.
+
+    If AI segments don't cover all transcript indices, the missing ones
+    are filled in as KEEP segments.
+
+    Args:
+        ai_segments: EditSegments from AI analysis.
+        all_segments: All original transcript segments.
+        video_path: Path to the source video.
+        duration: Total video duration in seconds.
+
+    Returns:
+        Complete EditDecisionList covering all transcript segments.
+    """
+    # Track which indices are covered by AI decisions
+    covered_indices: set[int] = set()
+    for seg in ai_segments:
+        covered_indices.update(seg.transcript_indices)
+
+    # Find gaps and create KEEP segments for them
+    all_indices = set(range(len(all_segments)))
+    missing_indices = sorted(all_indices - covered_indices)
+
+    # Create KEEP segments for missing indices
+    gap_segments: list[EditSegment] = []
+    if missing_indices:
+        # Group consecutive indices into segments
+        start_idx = missing_indices[0]
+        end_idx = missing_indices[0]
+
+        for idx in missing_indices[1:]:
+            if idx == end_idx + 1:
+                # Consecutive, extend the range
+                end_idx = idx
+            else:
+                # Gap - save current segment and start new one
+                gap_segments.append(
+                    EditSegment(
+                        start=all_segments[start_idx].start,
+                        end=all_segments[end_idx].end,
+                        action=EditAction.KEEP,
+                        reason=None,
+                        transcript_indices=list(range(start_idx, end_idx + 1)),
+                    )
+                )
+                start_idx = idx
+                end_idx = idx
+
+        # Add the last segment
+        gap_segments.append(
+            EditSegment(
+                start=all_segments[start_idx].start,
+                end=all_segments[end_idx].end,
+                action=EditAction.KEEP,
+                reason=None,
+                transcript_indices=list(range(start_idx, end_idx + 1)),
+            )
+        )
+
+    # Combine AI segments with gap segments and sort by start time
+    all_edit_segments = ai_segments + gap_segments
+    all_edit_segments.sort(key=lambda s: s.start)
+
+    return EditDecisionList(
+        source_video=video_path,
+        segments=all_edit_segments,
+        total_duration=duration,
+    )
+
+
 def edit_video(
     video_path: str,
     output_path: Optional[str] = None,
     transcript_path: Optional[str] = None,
     edl_path: Optional[str] = None,
     auto_apply: bool = False,
+    use_ai: bool = False,
 ) -> dict:
     """
     Orchestrate the video editing workflow.
@@ -202,9 +415,9 @@ def edit_video(
     1. Load or generate transcript (SRT file)
     2. Get video duration
     3. Format transcript for AI review
-    4. Create initial EDL (all segments as KEEP)
+    4. Create EDL (all KEEP if use_ai=False, or AI-analyzed if use_ai=True)
     5. Save EDL to JSON
-    6. Return information for AI review
+    6. Return information for review or apply cuts
 
     Args:
         video_path: Path to the input video file
@@ -213,6 +426,8 @@ def edit_video(
         edl_path: Optional path for EDL JSON file. If None, generates default path.
         auto_apply: If True, applies cuts immediately. If False (default), saves EDL
                    for human review.
+        use_ai: If True, uses AI to analyze transcript and suggest edits.
+                If False (default), creates all-KEEP EDL for manual review.
 
     Returns:
         Dictionary containing:
@@ -220,9 +435,11 @@ def edit_video(
             - transcript_for_review: Formatted transcript text for AI review
             - video_duration: Duration of the video in seconds
             - segment_count: Number of transcript segments
+            - ai_used: Whether AI analysis was used
 
     Raises:
         FileNotFoundError: If video file does not exist
+        LLMClientError: If use_ai=True and API call fails
     """
     # Validate video file exists
     if not os.path.exists(video_path):
@@ -241,8 +458,27 @@ def edit_video(
     # Step 3: Format transcript for AI review
     transcript_for_review = format_transcript_for_editing(segments)
 
-    # Step 4: Create initial EDL (all KEEP)
-    edl = _create_initial_edl(segments, video_path, duration)
+    # Step 4: Create EDL - either AI-analyzed or all-KEEP
+    if use_ai:
+        ai_segments = _analyze_with_ai(transcript_for_review, segments, use_ai=True)
+        if ai_segments:
+            edl = _create_edl_from_ai_segments(ai_segments, segments, video_path, duration)
+            # Check if all segments are REMOVE
+            if all(seg.action == EditAction.REMOVE for seg in edl.segments):
+                print(
+                    "Warning: AI suggested removing all segments. "
+                    "Review carefully before applying.",
+                    file=sys.stderr,
+                )
+        else:
+            # Parse failure - fall back to all-KEEP with warning
+            print(
+                "Warning: Failed to parse AI response. Falling back to all-KEEP EDL.",
+                file=sys.stderr,
+            )
+            edl = _create_initial_edl(segments, video_path, duration)
+    else:
+        edl = _create_initial_edl(segments, video_path, duration)
 
     # Step 5: Determine EDL path and save
     if edl_path is None:
@@ -260,6 +496,7 @@ def edit_video(
         "segment_count": len(segments),
         "video_path": video_path,
         "transcript_path": transcript_path,
+        "ai_used": use_ai,
     }
 
     if auto_apply:
@@ -274,7 +511,8 @@ def apply_edl_to_video(
     video_path: str,
     edl_path: str,
     output_path: Optional[str] = None,
-) -> str:
+    srt_path: Optional[str] = None,
+) -> str | dict:
     """
     Apply a previously generated/reviewed EDL to a video.
 
@@ -282,12 +520,14 @@ def apply_edl_to_video(
         video_path: Path to the input video file
         edl_path: Path to the EDL JSON file
         output_path: Optional path for output video. If None, generates temp file.
+        srt_path: Optional path to input SRT file. If provided, generates adjusted SRT.
 
     Returns:
-        Path to the edited video file
+        If srt_path is None: Path to the edited video file (str) for backward compatibility
+        If srt_path is provided: Dict with 'video_path' and 'srt_path' keys
 
     Raises:
-        FileNotFoundError: If video or EDL file does not exist
+        FileNotFoundError: If video, EDL, or SRT file does not exist
         json.JSONDecodeError: If EDL file is not valid JSON
     """
     # Validate files exist
@@ -303,4 +543,20 @@ def apply_edl_to_video(
     edl = edl_from_dict(edl_data)
 
     # Apply cuts using video_cutter
-    return cut_video(video_path, edl, output_path)
+    edited_video_path = cut_video(video_path, edl, output_path)
+
+    # If SRT file provided, adjust it for the cut video
+    if srt_path is not None:
+        # Generate output SRT path based on video output path
+        video_output_path = Path(edited_video_path)
+        srt_output_path = str(video_output_path.with_suffix(".srt"))
+
+        adjusted_srt_path = adjust_srt_for_edl(srt_path, edl, srt_output_path)
+
+        return {
+            "video_path": edited_video_path,
+            "srt_path": adjusted_srt_path,
+        }
+
+    # Return string for backward compatibility when no SRT provided
+    return edited_video_path

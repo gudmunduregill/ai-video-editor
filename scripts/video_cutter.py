@@ -12,7 +12,7 @@ from typing import Optional
 
 import ffmpeg  # type: ignore[import-untyped]
 
-from scripts.edit_decision import EditDecisionList, EditSegment
+from scripts.edit_decision import EditAction, EditDecisionList, EditSegment
 from scripts.exceptions import EDLValidationError, VideoCuttingError
 
 # Threshold for switching from filter_complex to concat demuxer approach.
@@ -84,6 +84,114 @@ def cut_video(
         raise VideoCuttingError(
             f"Failed to cut video {video_path}: {str(e)}"
         ) from e
+
+    return output_path
+
+
+def adjust_srt_for_edl(
+    srt_path: str,
+    edl: EditDecisionList,
+    output_path: str,
+) -> str:
+    """
+    Adjust SRT subtitle timestamps to match a cut video based on an EDL.
+
+    For each subtitle in the original SRT:
+    - If the subtitle is entirely within a KEEP segment, adjust timestamps
+    - If the subtitle spans a KEEP segment boundary, trim it to fit
+    - If the subtitle is entirely within a REMOVE segment, discard it
+
+    Timestamp adjustment accounts for cumulative removed time before each
+    KEEP segment.
+
+    Args:
+        srt_path: Path to the input SRT file
+        edl: EditDecisionList defining which segments to keep
+        output_path: Path for the output SRT file
+
+    Returns:
+        Path to the adjusted SRT file
+
+    Raises:
+        FileNotFoundError: If SRT file doesn't exist
+    """
+    # Import here to avoid circular imports
+    from scripts.edit_pipeline import _iter_srt_segments
+    from scripts.subtitle_writer import format_srt_timestamp
+
+    # Validate input file exists
+    if not os.path.exists(srt_path):
+        raise FileNotFoundError(f"SRT file not found: {srt_path}")
+
+    # Get KEEP segments sorted by start time
+    keep_segments = sorted(edl.keep_segments, key=lambda s: s.start)
+
+    # Calculate cumulative removed time before each KEEP segment
+    # This is the total time of gaps/REMOVE segments before each KEEP segment
+    cumulative_offsets = []
+    cumulative_removed = 0.0
+
+    for i, segment in enumerate(keep_segments):
+        if i == 0:
+            # For the first KEEP segment, the offset is the segment's start time
+            # (any content before the first KEEP segment is removed)
+            cumulative_removed = segment.start
+        else:
+            # Add the gap between previous KEEP segment end and this KEEP segment start
+            prev_segment = keep_segments[i - 1]
+            gap = segment.start - prev_segment.end
+            cumulative_removed += gap
+
+        cumulative_offsets.append(cumulative_removed)
+
+    # Process each subtitle from the original SRT
+    adjusted_subtitles = []
+
+    for subtitle in _iter_srt_segments(srt_path):
+        sub_start = subtitle.start
+        sub_end = subtitle.end
+
+        # Find if this subtitle overlaps with any KEEP segment
+        for i, segment in enumerate(keep_segments):
+            offset = cumulative_offsets[i]
+
+            # Check if subtitle overlaps with this KEEP segment
+            # Overlap exists if: sub_start < segment.end AND sub_end > segment.start
+            if sub_start < segment.end and sub_end > segment.start:
+                # Calculate trimmed start and end within the KEEP segment
+                trimmed_start = max(sub_start, segment.start)
+                trimmed_end = min(sub_end, segment.end)
+
+                # Adjust timestamps by subtracting cumulative offset
+                new_start = trimmed_start - offset
+                new_end = trimmed_end - offset
+
+                # Create adjusted subtitle entry
+                adjusted_subtitles.append({
+                    "start": new_start,
+                    "end": new_end,
+                    "text": subtitle.text,
+                })
+                # Only add the subtitle once (to the first matching KEEP segment)
+                break
+
+    # Write adjusted SRT file
+    with open(output_path, "w", encoding="utf-8") as f:
+        for index, sub in enumerate(adjusted_subtitles, start=1):
+            # Write subtitle number
+            f.write(f"{index}\n")
+
+            # Write timestamp line
+            start_ts = format_srt_timestamp(sub["start"])
+            end_ts = format_srt_timestamp(sub["end"])
+            f.write(f"{start_ts} --> {end_ts}\n")
+
+            # Write subtitle text
+            f.write(f"{sub['text']}\n")
+
+            # Write blank line separator (except after last segment)
+            if index < len(adjusted_subtitles):
+                f.write("\n")
 
     return output_path
 
