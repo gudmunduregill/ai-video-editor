@@ -3,6 +3,19 @@ name = "ai-video-editor"
 version = "0.1.0"
 description = "AI-powered video editing proof of concept"
 requires-python = ">=3.10"
+dependencies = [
+    "faster-whisper>=1.0.0",
+    "opencv-python>=4.8.0",
+    "ffmpeg-python>=0.2.0",
+    "anthropic>=0.40.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "mypy>=1.8.0",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
